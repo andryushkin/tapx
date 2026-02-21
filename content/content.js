@@ -201,7 +201,7 @@ function scanAll() {
 function showToast(text) {
     const toast = document.createElement('div');
     toast.className = 'tapx-toast';
-    toast.textContent = text;
+    toast.innerHTML = `<img src="${chrome.runtime.getURL('icons/icon48.png')}" class="tapx-toast-icon"><span>${text}</span>`;
     document.body.appendChild(toast);
 
     // trigger transition

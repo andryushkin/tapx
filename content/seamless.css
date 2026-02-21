@@ -59,9 +59,12 @@
 /* Toast notification */
 .tapx-toast {
     position: fixed;
-    top: 70px;
+    top: 5px;
     right: 24px;
     transform: translateY(-8px);
+    display: flex;
+    align-items: center;
+    gap: 8px;
     background: rgba(29, 155, 240, 0.92);
     color: #fff;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -78,4 +81,11 @@
 .tapx-toast.tapx-toast--show {
     opacity: 1;
     transform: translateY(0);
+}
+
+.tapx-toast-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    border-radius: 4px;
 }

@@ -3,18 +3,46 @@
   "name": "TapX — Seamless X.com Puzzles",
   "version": "1.0.0",
   "description": "Remove gaps between puzzle images on X.com and stitch them into one high-quality image",
-  "permissions": ["activeTab", "storage", "downloads"],
-  "host_permissions": ["https://x.com/*", "https://twitter.com/*", "https://pbs.twimg.com/*"],
+  "permissions": [
+    "activeTab",
+    "storage",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://twitter.com/*",
+    "https://pbs.twimg.com/*"
+  ],
   "action": {
     "default_popup": "popup/popup.html"
   },
-  "content_scripts": [{
-    "matches": ["https://x.com/*", "https://twitter.com/*"],
-    "css": ["content/seamless.css"],
-    "js": ["content/content.js"],
-    "run_at": "document_idle"
-  }],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "css": [
+        "content/seamless.css"
+      ],
+      "js": [
+        "content/content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
   "background": {
     "service_worker": "background/background.js"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icons/*.png"
+      ],
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ]
+    }
+  ]
 }
