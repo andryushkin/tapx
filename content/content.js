@@ -174,7 +174,7 @@ function processArticle(article) {
 
     injectStitchButton(article, images);
 
-    showToast('✓ TapX stitched');
+    showToast('Images stitched into a seamless grid');
 }
 
 
@@ -212,7 +212,7 @@ function showToast(text) {
     setTimeout(() => {
         toast.classList.remove('tapx-toast--show');
         toast.addEventListener('transitionend', () => toast.remove(), { once: true });
-    }, 1000);
+    }, 2000);
 }
 
 // ─────────────────────────────────────────────
