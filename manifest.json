@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TapX — Seamless X.com Puzzles",
-  "version": "1.0.0",
+  "version": "0.01",
   "description": "Remove gaps between puzzle images on X.com and stitch them into one high-quality image",
   "permissions": [
     "activeTab",

@@ -11,11 +11,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             saveAs: true
         });
 
-        // Increment solved puzzle counter
-        chrome.storage.local.get(['solvedCount'], (result) => {
-            const currentCount = result.solvedCount || 0;
-            chrome.storage.local.set({ solvedCount: currentCount + 1 });
-        });
+        // No tracking implementation, ensuring privacy.
 
         sendResponse({ success: true });
         return true;
@@ -24,12 +20,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // Initialize settings on installation
 chrome.runtime.onInstalled.addListener(() => {
-    chrome.storage.local.get(['isEnabled', 'solvedCount'], (result) => {
+    chrome.storage.local.get(['isEnabled'], (result) => {
         if (result.isEnabled === undefined) {
             chrome.storage.local.set({ isEnabled: true });
-        }
-        if (result.solvedCount === undefined) {
-            chrome.storage.local.set({ solvedCount: 0 });
         }
     });
 });
