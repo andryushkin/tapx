@@ -6,7 +6,7 @@ Chrome-расширение (Manifest V3) для бесшовного отобр
 
 ```
 tapx/
-├── manifest.json              — MV3 конфиг, версия 0.01
+├── manifest.json              — MV3 конфиг, версия 0.1.0
 ├── content/
 │   ├── content.js             — основная логика: сканирование твитов, DOM-замена, Canvas-склейка
 │   └── seamless.css           — стили: tapx-grid-container, tapx-stitch-btn, tapx-toast
@@ -18,7 +18,8 @@ tapx/
 ├── icons/                     — иконки 16/48/128px
 ├── build_extension.py         — сборщик ZIP для Chrome Web Store (python 3.9+)
 ├── tapx_release.zip           — последний собранный релиз (не коммитить)
-└── концепция.md               — PRD: архитектура, конкурентный анализ, монетизация
+├── концепция.md               — PRD: архитектура, конкурентный анализ, монетизация
+└── webstore.md                — SEO-описание для Chrome Web Store (EN, ≤1600 символов)
 ```
 
 ## Разрешения (manifest.json)
@@ -71,7 +72,7 @@ python build_extension.py
 ```
 
 Упаковывает: `manifest.json`, `popup/`, `content/`, `background/`, `icons/`.
-Результат: `tapx_release.zip` (~24 KB).
+Результат: `tapx_release.zip` (~19 KB).
 
 **Загрузка в CWS:** [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole)
 
