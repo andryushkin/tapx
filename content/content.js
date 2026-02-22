@@ -74,13 +74,22 @@ function originalUrl(src) {
 }
 
 /**
- * Detect grid layout (cols × rows) by image count.
- * Avoids relying on getBoundingClientRect() which returns zeros before lazy load.
+ * Detect grid layout (cols × rows) by reading real DOM rects of loaded images.
+ * Must be called only after images are loaded (naturalWidth > 0).
+ * Falls back to 1-col if rects are still zero.
  */
-function detectLayout(count) {
-    if (count === 4) return { cols: 2, rows: 2 };
-    if (count === 2) return { cols: 2, rows: 1 };
-    return { cols: 1, rows: count };
+function detectLayout(images) {
+    const rects = images.map(img => img.getBoundingClientRect());
+    const allZero = rects.every(r => r.width === 0 && r.height === 0);
+    if (allZero) return { cols: 1, rows: images.length };
+
+    const bucket = v => Math.round(v / 10);
+    const uniqueX = new Set(rects.map(r => bucket(r.left)));
+    if (uniqueX.size <= 1) return { cols: 1, rows: images.length };
+
+    const cols = uniqueX.size;
+    const rows = Math.ceil(images.length / cols);
+    return { cols, rows };
 }
 
 // ─────────────────────────────────────────────
@@ -88,27 +97,54 @@ function detectLayout(count) {
 // ─────────────────────────────────────────────
 
 function processArticle(article) {
-    if (article.dataset.tapxDone === '1') return;
+    if (article.dataset.tapxDone) return;          // 'pending' или '1'
+    article.dataset.tapxDone = 'pending';           // lock против двойного вызова
 
     const images = getMediaImages(article);
-    if (images.length < 2) return;
+    if (images.length < 2) {
+        delete article.dataset.tapxDone;
+        return;
+    }
+
+    const unloaded = images.filter(img => !img.complete || img.naturalWidth === 0);
+    if (unloaded.length > 0) {
+        let done = false;
+        const proceed = () => { if (!done) { done = true; buildGrid(article, images); } };
+        unloaded.forEach(img => {
+            img.addEventListener('load',  proceed, { once: true });
+            img.addEventListener('error', proceed, { once: true });
+        });
+        // Fallback: строить даже если картинки не загрузились
+        setTimeout(proceed, 800);
+    } else {
+        buildGrid(article, images); // картинки уже загружены — строить сразу
+    }
+}
+
+function buildGrid(article, images) {
+    if (article.dataset.tapxDone === '1') return;   // защита от гонки (timeout + load)
+
+    const { cols, rows } = detectLayout(images);    // теперь с настоящими rect
+
+    // Пазл — только вертикальный столбик (cols === 1). Всё остальное не трогаем.
+    if (cols > 1) {
+        article.dataset.tapxDone = 'skip';
+        return;
+    }
 
     article.dataset.tapxDone = '1';
-
-    const { cols, rows } = detectLayout(images.length);
 
     // Build our seamless grid container
     const grid = document.createElement('div');
     grid.className = 'tapx-grid-container tapx-loading';
     grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-    grid.style.gridTemplateRows = `repeat(${rows}, auto)`;
+    grid.style.gridTemplateRows    = `repeat(${rows}, auto)`;
     grid.dataset.tapxImages = images.map(img => originalUrl(img.src)).join('|');
 
     // Clone each image into a cell
     images.forEach((img) => {
-        const cell = document.createElement('div');
+        const cell  = document.createElement('div');
         cell.className = 'tapx-grid-cell';
-
         const clone = document.createElement('img');
         clone.src = img.src;
         clone.alt = img.alt || '';
@@ -129,16 +165,12 @@ function processArticle(article) {
     textBlock.className = 'tapx-text-block';
     Array.from(target.children).forEach(child => {
         const containsImage = images.some(img => child === img || child.contains(img));
-        if (!containsImage) {
-            textBlock.appendChild(child.cloneNode(true));
-        }
+        if (!containsImage) textBlock.appendChild(child.cloneNode(true));
     });
 
     // Insert: [text clone (if any)] → [grid] → then hide original target
     const parent = target.parentElement;
-    if (textBlock.hasChildNodes()) {
-        parent.insertBefore(textBlock, target);
-    }
+    if (textBlock.hasChildNodes()) parent.insertBefore(textBlock, target);
     parent.insertBefore(grid, target);
 
     target.style.display = 'none';
