@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "TapX — Seamless X.com Puzzles",
   "version": "0.1.0",
-  "description": "Remove gaps between puzzle images on X.com and stitch them into one high-quality image",
+  "description": "Removes gaps between split-image puzzle posts on X / Twitter for a seamless, immersive viewing experience.",
   "permissions": ["activeTab", "storage"],
   "host_permissions": [
     "https://x.com/*",
