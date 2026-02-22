@@ -18,12 +18,12 @@ function isOnTweetPage() {
     return /\/status\/\d+/.test(window.location.pathname);
 }
 
-chrome.storage.local.get(['isEnabled'], (r) => {
+api.storage.local.get(['isEnabled'], (r) => {
     if (r.isEnabled !== undefined) isEnabled = r.isEnabled;
     if (isEnabled) scanAll();
 });
 
-chrome.runtime.onMessage.addListener((msg) => {
+api.runtime.onMessage.addListener((msg) => {
     if (msg.action === 'toggleState') {
         isEnabled = msg.isEnabled;
         isEnabled ? scanAll() : revertAll();
@@ -277,8 +277,21 @@ async function stitchAndDownload(images, article) {
         const tweetId = getTweetId(article);
         const filename = `tapx_${username}_${tweetId}_stitched.jpg`;
 
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.98);
-        chrome.runtime.sendMessage({ action: 'downloadCanvas', dataUrl, filename });
+        if (typeof browser !== 'undefined') {
+            // Firefox: blob URL download directly from content script
+            canvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }, 'image/jpeg', 0.98);
+        } else {
+            // Chrome: send dataUrl to background service worker
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.98);
+            api.runtime.sendMessage({ action: 'downloadCanvas', dataUrl, filename });
+        }
 
     } catch (err) {
         console.error('TapX stitch error:', err);
