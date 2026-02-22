@@ -1,37 +1,42 @@
 # CLAUDE.md — TapX
 
-Chrome-расширение (Manifest V3) для бесшовного отображения и склейки изображений-пазлов на X.com / Twitter.
+Chrome (MV3) + Firefox (MV2)-расширение для бесшовного отображения и склейки изображений-пазлов на X.com / Twitter.
 
 ## Структура проекта
 
 ```
 tapx/
-├── manifest.json              — MV3 конфиг, версия 0.1.0
+├── manifest.json              — Chrome MV3 конфиг, версия 0.1.0
+├── manifest-firefox.json      — Firefox MV2 конфиг (browser_action, background.scripts)
 ├── content/
+│   ├── compat.js              — полифил: const api = browser ?? chrome (подключается первым)
 │   ├── content.js             — основная логика: сканирование твитов, DOM-замена, Canvas-склейка
 │   └── seamless.css           — стили: tapx-grid-container, tapx-stitch-btn, tapx-toast
 ├── background/
-│   └── background.js          — service worker: обработка скачивания (Downloads API)
+│   └── background.js          — service worker (Chrome) / background script (Firefox): Downloads API
 ├── popup/
 │   ├── popup.html             — UI: заголовок + toggle on/off
 │   └── popup.js               — синхронизация toggle со storage и открытыми вкладками
-├── icons/                     — иконки 16/48/128px
-├── build_extension.py         — сборщик ZIP для Chrome Web Store (python 3.9+)
-├── tapx_release.zip           — последний собранный релиз (не коммитить)
+├── icons/                     — иконки 16/32/48/128px
+├── build_extension.py         — сборщик ZIP (python 3.9+), поддерживает --target firefox
+├── tapx_release.zip           — Chrome релиз (не коммитить)
+├── tapx_firefox.zip           — Firefox релиз (не коммитить)
 ├── концепция.md               — PRD: архитектура, конкурентный анализ, монетизация
 └── webstore.md                — SEO-описание для Chrome Web Store (EN, ≤1600 символов)
 ```
 
-## Разрешения (manifest.json)
+## Разрешения
 
-- `activeTab`, `storage`, `downloads`
-- `host_permissions`: `https://x.com/*`, `https://twitter.com/*`, `https://pbs.twimg.com/*`
+**Chrome (manifest.json):** `activeTab`, `storage` | host_permissions: `https://x.com/*`, `https://twitter.com/*`
+**Firefox (manifest-firefox.json):** `activeTab`, `storage`, `tabs` + те же хосты внутри `permissions`
+
+> `tabs` нужен в Firefox для `browser.tabs.query({ url: [...] })` в popup.js
 
 ## Как работает content.js
 
 ### Основной флоу
 
-1. При загрузке читает `isEnabled` из `chrome.storage.local`, запускает `scanAll()`
+1. При загрузке читает `isEnabled` из `api.storage.local` (полифил: `browser ?? chrome`), запускает `scanAll()`
 2. `scanAll()` — ищет все `article[data-testid="tweet"]`, вызывает `processArticle()`
 3. `processArticle()`:
    - Собирает медиа-изображения (`pbs.twimg.com/media/`), исключая аватары (`[data-testid^="UserAvatar"]`)
@@ -61,20 +66,21 @@ tapx/
 - Заменяет `name=small/medium` → `name=orig` для скачивания в 4K
 - Использует `crossOrigin = "anonymous"` для обхода CORS
 - Рисует grid матрицу через `ctx.drawImage` с +0.5px anti-seam
-- Отправляет `dataUrl` в background через `chrome.runtime.sendMessage`
+- **Chrome:** отправляет `dataUrl` в background через `api.runtime.sendMessage`
+- **Firefox:** `canvas.toBlob` → `URL.createObjectURL` → `<a>.click()` прямо из content script (Firefox не поддерживает data-URL в downloads API)
 - Имя файла: `tapx_{username}_{tweetId}_stitched.jpg`
 
 ## Сборка и публикация
 
 ```bash
-# Собрать ZIP для Chrome Web Store
-python build_extension.py
+python build_extension.py                    # Chrome → tapx_release.zip (~20 KB)
+python build_extension.py --target firefox   # Firefox → tapx_firefox.zip (~20 KB)
 ```
 
-Упаковывает: `manifest.json`, `popup/`, `content/`, `background/`, `icons/`.
-Результат: `tapx_release.zip` (~19 KB).
+Упаковывает: манифест (переименовывается в `manifest.json`), `popup/`, `content/`, `background/`, `icons/`.
 
-**Загрузка в CWS:** [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole)
+**Chrome:** [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole)
+**Firefox:** `about:debugging` → This Firefox → Load Temporary Add-on → `manifest-firefox.json`
 
 ## Известные проблемы / технический долг
 
@@ -84,7 +90,7 @@ python build_extension.py
 3. **Canvas использует размеры первого изображения** для всей матрицы — при асимметричных макетах (3 фото) сшивка геометрически неточна.
 4. **`revertAll()`** ставит `display: ''` вместо сохранённого исходного значения — может сломать layout если оригинал был `flex`/`grid`.
 5. ~~**`getUsername()`**~~ — **Исправлено:** строгий regex `/^\/([A-Za-z0-9_]{1,50})(?:\/)?$/` исключает служебные пути.
-6. ~~**`chrome.tabs.sendMessage` без обработки ошибок**~~ — **Исправлено:** callback `() => { void chrome.runtime.lastError; }` подавляет Unchecked error.
+6. ~~**`chrome.tabs.sendMessage` без обработки ошибок**~~ — **Исправлено:** callback `() => { void api.runtime.lastError; }` подавляет Unchecked error.
 
 > **Архитектурное решение:** расширение намеренно работает только на страницах твитов (`/status/\d+`), а не в ленте — пазл в ленте не виден целиком, обработка там лишена смысла.
 
