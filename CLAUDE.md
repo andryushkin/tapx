@@ -80,7 +80,8 @@ python build_extension.py --target firefox   # Firefox → tapx_firefox.zip (~20
 Упаковывает: манифест (переименовывается в `manifest.json`), `popup/`, `content/`, `background/`, `icons/`.
 
 **Chrome:** [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole)
-**Firefox:** `about:debugging` → This Firefox → Load Temporary Add-on → `manifest-firefox.json`
+**Firefox тест:** `about:debugging` → This Firefox → Load Temporary Add-on → выбрать `tapx_firefox.zip`
+> ⚠️ Firefox всегда читает `manifest.json` из директории, игнорируя выбранный файл. Тестировать нужно через ZIP, а не через `manifest-firefox.json` напрямую.
 
 ## Известные проблемы / технический долг
 
