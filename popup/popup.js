@@ -18,10 +18,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Broadcast to all valid tabs
         chrome.tabs.query({ url: ["*://*.x.com/*", "*://*.twitter.com/*"] }, (tabs) => {
             for (let tab of tabs) {
-                chrome.tabs.sendMessage(tab.id, {
-                    action: 'toggleState',
-                    isEnabled: isEnabled
-                });
+                chrome.tabs.sendMessage(
+                    tab.id,
+                    { action: 'toggleState', isEnabled },
+                    () => { void chrome.runtime.lastError; }
+                );
             }
         });
     });

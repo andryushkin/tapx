@@ -14,6 +14,10 @@
 // ─────────────────────────────────────────────
 let isEnabled = true;
 
+function isOnTweetPage() {
+    return /\/status\/\d+/.test(window.location.pathname);
+}
+
 chrome.storage.local.get(['isEnabled'], (r) => {
     if (r.isEnabled !== undefined) isEnabled = r.isEnabled;
     if (isEnabled) scanAll();
@@ -70,35 +74,13 @@ function originalUrl(src) {
 }
 
 /**
- * Detect grid layout (cols × rows) by reading actual bounding rects
- * of the original images before we replace them.
- *
- * Logic:
- *  – Round each image's left/top to 10px buckets to group by position
- *  – Count distinct X positions → number of columns
- *  – Count distinct Y positions → number of rows
+ * Detect grid layout (cols × rows) by image count.
+ * Avoids relying on getBoundingClientRect() which returns zeros before lazy load.
  */
-function detectLayout(images) {
-    const rects = images.map(img => img.getBoundingClientRect());
-
-    // If images aren't rendered yet (lazy load), default to 1 column
-    const allZero = rects.every(r => r.width === 0 && r.height === 0);
-    if (allZero) return { cols: 1, rows: images.length };
-
-    // Round to 10px buckets to ignore sub-pixel jitter
-    const bucket = v => Math.round(v / 10);
-    const uniqueX = new Set(rects.map(r => bucket(r.left)));
-
-    // If images share the same X → vertical stack → 1 column
-    // Only use multiple columns when they're clearly side-by-side
-    if (uniqueX.size <= 1) {
-        return { cols: 1, rows: images.length };
-    }
-
-    // Side-by-side layout: use number of unique X positions as cols
-    const cols = uniqueX.size;
-    const rows = Math.ceil(images.length / cols);
-    return { cols, rows };
+function detectLayout(count) {
+    if (count === 4) return { cols: 2, rows: 2 };
+    if (count === 2) return { cols: 2, rows: 1 };
+    return { cols: 1, rows: count };
 }
 
 // ─────────────────────────────────────────────
@@ -113,8 +95,7 @@ function processArticle(article) {
 
     article.dataset.tapxDone = '1';
 
-    // Detect actual layout from image positions before we hide anything
-    const { cols, rows } = detectLayout(images);
+    const { cols, rows } = detectLayout(images.length);
 
     // Build our seamless grid container
     const grid = document.createElement('div');
@@ -123,17 +104,10 @@ function processArticle(article) {
     grid.style.gridTemplateRows = `repeat(${rows}, auto)`;
     grid.dataset.tapxImages = images.map(img => originalUrl(img.src)).join('|');
 
-    // Clone each image into a cell, preserving aspect ratio
-    const rects = images.map(img => img.getBoundingClientRect());
-    images.forEach((img, i) => {
+    // Clone each image into a cell
+    images.forEach((img) => {
         const cell = document.createElement('div');
         cell.className = 'tapx-grid-cell';
-
-        // Preserve aspect ratio from the rendered rect
-        const rect = rects[i];
-        if (rect && rect.width > 0 && rect.height > 0) {
-            cell.style.aspectRatio = `${rect.width} / ${rect.height}`;
-        }
 
         const clone = document.createElement('img');
         clone.src = img.src;
@@ -173,8 +147,6 @@ function processArticle(article) {
     requestAnimationFrame(() => grid.classList.remove('tapx-loading'));
 
     injectStitchButton(article, images);
-
-    showToast('Images stitched into a seamless grid');
 }
 
 
@@ -192,27 +164,8 @@ function revertAll() {
 }
 
 function scanAll() {
+    if (!isOnTweetPage()) return;
     document.querySelectorAll('article[data-testid="tweet"]').forEach(processArticle);
-}
-
-// ─────────────────────────────────────────────
-//  Toast Notification
-// ─────────────────────────────────────────────
-function showToast(text) {
-    const toast = document.createElement('div');
-    toast.className = 'tapx-toast';
-    toast.innerHTML = `<img src="${chrome.runtime.getURL('icons/icon48.png')}" class="tapx-toast-icon"><span>${text}</span>`;
-    document.body.appendChild(toast);
-
-    // trigger transition
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => toast.classList.add('tapx-toast--show'));
-    });
-
-    setTimeout(() => {
-        toast.classList.remove('tapx-toast--show');
-        toast.addEventListener('transitionend', () => toast.remove(), { once: true });
-    }, 2000);
 }
 
 // ─────────────────────────────────────────────
@@ -312,8 +265,12 @@ function loadImage(url) {
 }
 
 function getUsername(article) {
-    const a = article.querySelector('a[href^="/"][role="link"]:not([href*="/status/"])');
-    return a ? a.getAttribute('href').replace(/^\//, '').split('/')[0] : 'unknown';
+    const links = article.querySelectorAll('a[href^="/"][role="link"]');
+    for (const link of links) {
+        const match = link.getAttribute('href').match(/^\/([A-Za-z0-9_]{1,50})(?:\/)?$/);
+        if (match) return match[1];
+    }
+    return 'unknown';
 }
 
 function getTweetId(article) {
