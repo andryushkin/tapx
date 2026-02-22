@@ -1,20 +1,16 @@
 {
   "manifest_version": 3,
   "name": "TapX — Seamless X.com Puzzles",
-  "version": "0.01",
+  "version": "0.1.0",
   "description": "Remove gaps between puzzle images on X.com and stitch them into one high-quality image",
-  "permissions": [
-    "activeTab",
-    "storage",
-    "downloads"
-  ],
+  "permissions": ["activeTab", "storage"],
   "host_permissions": [
     "https://x.com/*",
-    "https://twitter.com/*",
-    "https://pbs.twimg.com/*"
+    "https://twitter.com/*"
   ],
   "icons": {
     "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
@@ -22,22 +18,16 @@
     "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     }
   },
   "content_scripts": [
     {
-      "matches": [
-        "https://x.com/*",
-        "https://twitter.com/*"
-      ],
-      "css": [
-        "content/seamless.css"
-      ],
-      "js": [
-        "content/content.js"
-      ],
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "css": ["content/seamless.css"],
+      "js": ["content/content.js"],
       "run_at": "document_idle"
     }
   ],
@@ -46,13 +36,8 @@
   },
   "web_accessible_resources": [
     {
-      "resources": [
-        "icons/*.png"
-      ],
-      "matches": [
-        "https://x.com/*",
-        "https://twitter.com/*"
-      ]
+      "resources": ["icons/*.png"],
+      "matches": ["https://x.com/*", "https://twitter.com/*"]
     }
   ]
 }
