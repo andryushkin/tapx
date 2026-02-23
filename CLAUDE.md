@@ -21,8 +21,10 @@ tapx/
 ├── build_extension.py         — сборщик ZIP (python 3.9+), поддерживает --target firefox
 ├── tapx_release.zip           — Chrome релиз (не коммитить)
 ├── tapx_firefox.zip           — Firefox релиз (не коммитить)
-├── концепция.md               — PRD: архитектура, конкурентный анализ, монетизация
-└── webstore.md                — SEO-описание для Chrome Web Store (EN, ≤1600 символов)
+├── webstore.md                — SEO-описание для Chrome Web Store (EN, ≤1600 символов)
+├── PRD.md                     — Product Requirements: v0.1.0 (shipped) + v0.2.0 roadmap
+├── plan-upload-to-tapx.md    — Детальный план фичи Upload to tapx.io (v0.2.0)
+└── website.md                — Спецификация tapx.io: API-контракт, бизнес-логика, монетизация
 ```
 
 ## Разрешения
@@ -69,6 +71,18 @@ tapx/
 - **Chrome:** отправляет `dataUrl` в background через `api.runtime.sendMessage`
 - **Firefox:** `canvas.toBlob` → `URL.createObjectURL` → `<a>.click()` прямо из content script (Firefox не поддерживает data-URL в downloads API)
 - Имя файла: `tapx_{username}_{tweetId}_stitched.jpg`
+
+### v0.2.0: Upload to tapx.io (планируется)
+
+Планируемый рефактор: `stitchAndDownload()` → `stitchCanvas()` (внутренняя) + `stitchAndDownload()` + `stitchAndUpload()`.
+
+- `stitchAndUpload()` вызывает `uploadToTapx(canvas, article)` → `POST https://api.tapx.io/upload` (FormData)
+- Отправляет: склеенный JPEG blob, username, tweetId, tweetText, tweetUrl, avatar blob
+- `fetchAvatarBlob(article)` — скачивает аватарку через `fetch()` из content script
+- `getTweetText(article)` — `article.querySelector('[data-testid="tweetText"]')?.innerText`
+- Две точки входа: оверлей на изображении (hover) + кнопка в action bar
+- Требует `https://api.tapx.io/*` в host_permissions / permissions обоих манифестов
+- Backend tapx.io — отдельный проект; контракт API зафиксирован в `plan-upload-to-tapx.md`
 
 ## Сборка и публикация
 

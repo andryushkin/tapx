@@ -108,3 +108,33 @@ TapX — Chrome (MV3) и Firefox (MV2)-расширение, которое:
 - Монетизация и Pro-тариф.
 - Работа в ленте (timeline feed).
 - Обработка галерей (`cols > 1`).
+
+---
+
+## Roadmap v0.2.0 — Upload to tapx.io
+
+**Цель:** конвертировать пользователей расширения в посетителей tapx.io (монетизация через рекламу и Pro).
+
+**Детальный план:** см. `plan-upload-to-tapx.md`
+
+### FR-5: Загрузка на tapx.io и открытие страницы
+
+Флоу: пользователь нажимает → Canvas-склейка → `POST api.tapx.io/upload` (FormData: image JPEG, username, tweetId, tweetText, tweetUrl, avatar blob) → в ответ `{ url }` → открывается новая вкладка с `url`.
+
+Две точки входа (обе делают одно и то же):
+- **Оверлей-кнопка** — появляется при hover в правом нижнем углу изображения
+- **Кнопка в action bar** — всегда видна под твитом
+
+### Технические требования v0.2.0
+
+| Требование | Значение |
+|---|---|
+| Новые host_permissions | `https://api.tapx.io/*` |
+| Аватарка | fetch blob из content script (CORS через host_permissions) |
+| Upload метод | `fetch()` FormData напрямую из content script |
+| Зависимость | Backend tapx.io (отдельный проект) |
+
+### Нефункциональные изменения
+
+- `stitchAndDownload()` рефакторится: выделяется `stitchCanvas()` → используется и в upload, и в локальном скачивании.
+- `fetchAvatarBlob(article)`, `getTweetText(article)` — новые вспомогательные функции.
