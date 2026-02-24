@@ -23,10 +23,21 @@ api.storage.local.get(['isEnabled'], (r) => {
     if (isEnabled) scanAll();
 });
 
-api.runtime.onMessage.addListener((msg) => {
+api.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg.action === 'toggleState') {
         isEnabled = msg.isEnabled;
         isEnabled ? scanAll() : revertAll();
+    } else if (msg.action === 'uploadCurrent') {
+        const article = document.querySelector('article[data-tapx-done="1"]');
+        if (!article) {
+            sendResponse({ error: 'no_puzzle' });
+            return false;
+        }
+        const images = getMediaImages(article);
+        const btn = article.querySelector('.tapx-stitch-btn') || { classList: { add: () => {}, remove: () => {} } };
+        sendResponse({ ok: true });
+        stitchAndUpload(images, article, btn);
+        return false;
     }
 });
 
@@ -168,22 +179,27 @@ function buildGrid(article, images) {
         if (!containsImage) textBlock.appendChild(child.cloneNode(true));
     });
 
-    // Insert: [text clone (if any)] → [grid] → then hide original target
+    // Wrap grid so button can be absolutely positioned over it
+    const wrapper = document.createElement('div');
+    wrapper.className = 'tapx-wrapper';
+    wrapper.appendChild(grid);
+
+    // Insert: [text clone (if any)] → [wrapper] → then hide original target
     const parent = target.parentElement;
     if (textBlock.hasChildNodes()) parent.insertBefore(textBlock, target);
-    parent.insertBefore(grid, target);
+    parent.insertBefore(wrapper, target);
 
     target.style.display = 'none';
     target.dataset.tapxHidden = '1';
 
     requestAnimationFrame(() => grid.classList.remove('tapx-loading'));
 
-    injectStitchButton(article, images);
+    injectStitchButton(article, images, wrapper);
 }
 
 
 function revertAll() {
-    document.querySelectorAll('.tapx-grid-container').forEach(g => g.remove());
+    document.querySelectorAll('.tapx-wrapper').forEach(w => w.remove());
     document.querySelectorAll('.tapx-text-block').forEach(t => t.remove());
     document.querySelectorAll('[data-tapx-hidden="1"]').forEach(el => {
         el.style.display = '';
@@ -204,46 +220,23 @@ function scanAll() {
 //  Stitch button injection
 // ─────────────────────────────────────────────
 
-const STITCH_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-  <path d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm10 0h6v6h-6v-6z"/>
-</svg>`;
-
 const UPLOAD_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-  <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92S19.61 16.08 18 16.08z"/>
+  <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
 </svg>`;
 
-function injectStitchButton(article, images) {
-    // Find action bar—try several stable selectors
-    let bar = article.querySelector('[role="group"][aria-label]')
-        || article.querySelector('[data-testid="tweet-footer"]')
-        || article.querySelector('[role="group"]');
-    if (!bar) return;
+function injectStitchButton(article, images, wrapper) {
+    if (wrapper.querySelector('.tapx-stitch-btn')) return;
 
-    if (article.querySelector('.tapx-stitch-btn')) return;
-
-    // Download button
-    const downloadBtn = document.createElement('div');
-    downloadBtn.className = 'tapx-stitch-btn';
-    downloadBtn.title = 'Сшить и скачать оригиналы';
-    downloadBtn.innerHTML = STITCH_SVG;
-    downloadBtn.addEventListener('click', (e) => {
+    const btn = document.createElement('div');
+    btn.className = 'tapx-stitch-btn';
+    btn.title = 'Поделиться на taptoview.site';
+    btn.innerHTML = UPLOAD_SVG;
+    btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        stitchAndDownload(images, article);
+        stitchAndUpload(images, article, btn);
     });
-    bar.appendChild(downloadBtn);
-
-    // Upload button
-    const uploadBtn = document.createElement('div');
-    uploadBtn.className = 'tapx-stitch-btn tapx-upload-btn';
-    uploadBtn.title = 'Поделиться на taptoview.site';
-    uploadBtn.innerHTML = UPLOAD_SVG;
-    uploadBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        stitchAndUpload(images, article, uploadBtn);
-    });
-    bar.appendChild(uploadBtn);
+    wrapper.appendChild(btn);
 }
 
 // ─────────────────────────────────────────────
@@ -280,34 +273,6 @@ async function buildStitchedCanvas(images, article) {
     });
 
     return canvas;
-}
-
-async function stitchAndDownload(images, article) {
-    try {
-        const canvas = await buildStitchedCanvas(images, article);
-        const username = getUsername(article);
-        const tweetId = getTweetId(article);
-        const filename = `tapx_${username}_${tweetId}_stitched.jpg`;
-
-        if (typeof browser !== 'undefined') {
-            // Firefox: blob URL download directly from content script
-            canvas.toBlob((blob) => {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                a.click();
-                setTimeout(() => URL.revokeObjectURL(url), 1000);
-            }, 'image/jpeg', 0.98);
-        } else {
-            // Chrome: send dataUrl to background service worker
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.98);
-            api.runtime.sendMessage({ action: 'downloadCanvas', dataUrl, filename });
-        }
-    } catch (err) {
-        console.error('TapX stitch error:', err);
-        alert('TapX: не удалось сшить изображения. Подробности в консоли.');
-    }
 }
 
 function getTweetText(article) {
@@ -390,8 +355,7 @@ async function stitchAndUpload(images, article, btn) {
         }
 
         const { url } = await response.json();
-        try { await navigator.clipboard.writeText(url); } catch { /* clipboard denied */ }
-        showUploadToast('Ссылка скопирована! Открыть →', 'success', url);
+        window.open(url, '_blank', 'noopener,noreferrer');
 
     } catch (err) {
         console.error('TapX upload error:', err);

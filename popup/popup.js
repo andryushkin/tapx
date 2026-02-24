@@ -13,6 +13,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Upload button
+    const uploadBtn = document.getElementById('upload-btn');
+    const uploadStatus = document.getElementById('upload-status');
+
+    uploadBtn.addEventListener('click', () => {
+        uploadBtn.disabled = true;
+        uploadStatus.textContent = 'Загрузка...';
+
+        api.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            const tab = tabs[0];
+            if (!tab) {
+                uploadStatus.textContent = 'Вкладка не найдена';
+                uploadBtn.disabled = false;
+                return;
+            }
+            api.tabs.sendMessage(tab.id, { action: 'uploadCurrent' }, (response) => {
+                void api.runtime.lastError;
+                if (!response) {
+                    uploadStatus.textContent = 'Откройте страницу твита на X.com';
+                } else if (response.error === 'no_puzzle') {
+                    uploadStatus.textContent = 'Пазл не найден на странице';
+                } else if (response.ok) {
+                    uploadStatus.textContent = 'Открыто в новой вкладке ✓';
+                } else {
+                    uploadStatus.textContent = 'Не удалось загрузить';
+                }
+                uploadBtn.disabled = false;
+            });
+        });
+    });
+
     // Listen for toggle changes
     toggleSwitch.addEventListener('change', (e) => {
         const isEnabled = e.target.checked;
