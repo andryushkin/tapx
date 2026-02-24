@@ -106,6 +106,7 @@ python build_extension.py --target firefox   # Firefox → tapx_firefox.zip (~20
 4. **`revertAll()`** ставит `display: ''` вместо сохранённого исходного значения — может сломать layout если оригинал был `flex`/`grid`.
 5. ~~**`getUsername()`**~~ — **Исправлено:** строгий regex `/^\/([A-Za-z0-9_]{1,50})(?:\/)?$/` исключает служебные пути.
 6. ~~**`chrome.tabs.sendMessage` без обработки ошибок**~~ — **Исправлено:** callback `() => { void api.runtime.lastError; }` подавляет Unchecked error.
+7. ~~**Задержка открытия окна при upload**~~ — **Исправлено:** `window.open('', '_blank')` вызывается синхронно до первого `await` в `stitchAndUpload`. Окно открывается мгновенно с loading-страницей, после upload делается `newWin.location.href = url`. При ошибке — `newWin.close()`.
 
 > **Архитектурное решение:** расширение намеренно работает только на страницах твитов (`/status/\d+`), а не в ленте — пазл в ленте не виден целиком, обработка там лишена смысла.
 
