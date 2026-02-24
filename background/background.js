@@ -4,6 +4,11 @@ const api = typeof browser !== 'undefined' ? browser : chrome;
 // background.js - Service worker to handle downloads and storage
 
 api.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'openTab') {
+        api.tabs.create({ url: request.url });
+        sendResponse({ success: true });
+        return false;
+    }
     if (request.action === 'downloadCanvas') {
         const base64Data = request.dataUrl;
 

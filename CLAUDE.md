@@ -13,7 +13,7 @@ tapx/
 │   ├── content.js             — основная логика: сканирование твитов, DOM-замена, Canvas-склейка, upload
 │   └── seamless.css           — стили: tapx-wrapper, tapx-grid-container, tapx-stitch-btn, tapx-toast
 ├── background/
-│   └── background.js          — service worker (Chrome) / background script (Firefox): Downloads API
+│   └── background.js          — service worker (Chrome) / background script (Firefox): Downloads API + openTab action
 ├── popup/
 │   ├── popup.html             — UI: заголовок + toggle + кнопка "Поделиться на taptoview.site"
 │   └── popup.js               — toggle + upload-кнопка (sendMessage uploadCurrent в active tab)
@@ -106,9 +106,13 @@ python build_extension.py --target firefox   # Firefox → tapx_firefox.zip (~20
 4. **`revertAll()`** ставит `display: ''` вместо сохранённого исходного значения — может сломать layout если оригинал был `flex`/`grid`.
 5. ~~**`getUsername()`**~~ — **Исправлено:** строгий regex `/^\/([A-Za-z0-9_]{1,50})(?:\/)?$/` исключает служебные пути.
 6. ~~**`chrome.tabs.sendMessage` без обработки ошибок**~~ — **Исправлено:** callback `() => { void api.runtime.lastError; }` подавляет Unchecked error.
-7. ~~**Вкладка открывалась в фоне при upload**~~ — **Исправлено:** `window.open` + `document.write` + `newWin.focus()` вынесены в синхронный click handler в `injectStitchButton`. `newWin` передаётся параметром в `stitchAndUpload(images, article, btn, newWin)`. После `newWin.location.href = url` снова вызывается `newWin.focus()`. Если `newWin` закрыт или `null` — показывается toast со ссылкой.
+7. ~~**Вкладка открывалась в фоне при upload**~~ — **Исправлено:** `window.open` + `document.write` + `newWin.focus()` вынесены в синхронный click handler в `injectStitchButton`. `newWin` передаётся параметром в `stitchAndUpload(images, article, btn, newWin)`. После `newWin.location.href = url` снова вызывается `newWin.focus()`. Если `newWin = null` (popup upload) — background открывает вкладку через `openTab` action.
    > ⚠️ **НЕ перемещать `window.open` обратно в `stitchAndUpload`** — браузер открывает вкладку в фоне без возможности `focus()`.
 8. ~~**Firefox "corrupt" при установке из файла**~~ — **Исправлено:** добавлен `browser_specific_settings.gecko.id = "tapx@taptoview.site"` в `manifest-firefox.json`. Firefox требует gecko ID для установки через `about:addons`. Для временной установки (`about:debugging`) ID не обязателен.
+9. ~~**Firefox: about:blank при клике кнопки на картинке**~~ — **Исправлено:** `newWin.document.write` в Firefox content script бросал exception (XrayWrapper sandbox), что прерывало click handler до вызова `stitchAndUpload`. Фикс: `try/catch` вокруг `document.write`.
+   > ⚠️ **НЕ убирать try/catch вокруг `document.write`** — без него Firefox не запускает upload.
+10. ~~**Chrome popup: результат не открывался в новой вкладке**~~ — **Исправлено:** при `newWin = null` (popup upload) используется `api.runtime.sendMessage({ action: 'openTab', url })` → background делает `api.tabs.create({ url })`.
+   > background.js обязан иметь handler для `openTab` — без него popup upload не открывает результат.
 
 > **Архитектурное решение:** расширение намеренно работает только на страницах твитов (`/status/\d+`), а не в ленте — пазл в ленте не виден целиком, обработка там лишена смысла.
 

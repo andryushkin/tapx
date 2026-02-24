@@ -237,17 +237,21 @@ function injectStitchButton(article, images, wrapper) {
         // Открываем окно здесь — чистый синхронный контекст user gesture
         const newWin = window.open('', '_blank');
         if (newWin) {
-            newWin.document.write(
-                '<!DOCTYPE html><html><head><meta charset="utf-8"><title>TapX</title>' +
-                '<style>*{margin:0;box-sizing:border-box}' +
-                'body{background:#000;color:#fff;font-family:system-ui,sans-serif;' +
-                'display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px}' +
-                '.spinner{width:32px;height:32px;border:3px solid #333;border-top-color:#00ba7c;' +
-                'border-radius:50%;animation:spin 0.8s linear infinite}' +
-                '@keyframes spin{to{transform:rotate(360deg)}}</style></head>' +
-                '<body><div class="spinner"></div><p>Склейка и загрузка\u2026</p></body></html>'
-            );
-            newWin.document.close();
+            try {
+                newWin.document.write(
+                    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>TapX</title>' +
+                    '<style>*{margin:0;box-sizing:border-box}' +
+                    'body{background:#000;color:#fff;font-family:system-ui,sans-serif;' +
+                    'display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px}' +
+                    '.spinner{width:32px;height:32px;border:3px solid #333;border-top-color:#00ba7c;' +
+                    'border-radius:50%;animation:spin 0.8s linear infinite}' +
+                    '@keyframes spin{to{transform:rotate(360deg)}}</style></head>' +
+                    '<body><div class="spinner"></div><p>Склейка и загрузка\u2026</p></body></html>'
+                );
+                newWin.document.close();
+            } catch (_) {
+                // Firefox sandbox ограничивает document.write — продолжаем без спиннера
+            }
             newWin.focus();
         }
         stitchAndUpload(images, article, btn, newWin);
@@ -377,7 +381,10 @@ async function stitchAndUpload(images, article, btn, newWin) {
             newWin.location.href = url;
             newWin.focus();
         } else {
-            showUploadToast('Готово! Открыть результат', 'success', url);
+            // Popup upload: открыть результат в новой вкладке через background
+            api.runtime.sendMessage({ action: 'openTab', url }, () => {
+                void api.runtime.lastError;
+            });
         }
 
     } catch (err) {
