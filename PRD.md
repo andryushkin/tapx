@@ -121,7 +121,7 @@ TapX — Chrome (MV3) и Firefox (MV2)-расширение, которое:
 
 ### FR-5: Загрузка на taptoview.site ✅
 
-Флоу: кнопка-оверлей на картинке → `window.open('', '_blank')` (мгновенно, loading-страница) → `buildStitchedCanvas` → `POST https://taptoview.site/api/upload` (FormData: image JPEG, username, tweetId, tweetText, tweetUrl, avatar blob) → в ответ `{ id, url, expires }` → `newWin.location.href = url`.
+Флоу: клик на кнопку-оверлей → синхронно `window.open` + `newWin.focus()` (loading-страница видна сразу) → `buildStitchedCanvas` → `POST https://taptoview.site/api/upload` (FormData: image JPEG, username, tweetId, tweetText, tweetUrl, avatar blob) → в ответ `{ id, url, expires }` → `newWin.location.href = url` + `newWin.focus()`.
 
 - **Кнопка-оверлей** (download-arrow SVG) — правый нижний угол картинки, `position: absolute`; полупрозрачный тёмный фон с blur, зелёный hover
 - **tapx-wrapper** (position: relative) оборачивает grid, чтобы кнопка не клипалась `overflow: hidden`
@@ -132,7 +132,7 @@ TapX — Chrome (MV3) и Firefox (MV2)-расширение, которое:
 | Требование | Статус |
 |---|---|
 | `buildStitchedCanvas` выделен из `stitchAndDownload` | ✅ |
-| `stitchAndUpload(images, article, btn)` | ✅ |
+| `stitchAndUpload(images, article, btn, newWin)` — newWin передаётся из sync click handler | ✅ |
 | `fetchAvatarBlob(article)` — опционально, graceful | ✅ |
 | `getTweetText(article)` | ✅ |
 | `showUploadToast` — только для ошибок (success → window.open) | ✅ |
