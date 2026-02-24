@@ -36,7 +36,7 @@ api.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const images = getMediaImages(article);
         const btn = article.querySelector('.tapx-stitch-btn') || { classList: { add: () => {}, remove: () => {} } };
         sendResponse({ ok: true });
-        stitchAndUpload(images, article, btn);
+        stitchAndUpload(images, article, btn, null);
         return false;
     }
 });
@@ -234,7 +234,23 @@ function injectStitchButton(article, images, wrapper) {
     btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        stitchAndUpload(images, article, btn);
+        // Открываем окно здесь — чистый синхронный контекст user gesture
+        const newWin = window.open('', '_blank');
+        if (newWin) {
+            newWin.document.write(
+                '<!DOCTYPE html><html><head><meta charset="utf-8"><title>TapX</title>' +
+                '<style>*{margin:0;box-sizing:border-box}' +
+                'body{background:#000;color:#fff;font-family:system-ui,sans-serif;' +
+                'display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px}' +
+                '.spinner{width:32px;height:32px;border:3px solid #333;border-top-color:#00ba7c;' +
+                'border-radius:50%;animation:spin 0.8s linear infinite}' +
+                '@keyframes spin{to{transform:rotate(360deg)}}</style></head>' +
+                '<body><div class="spinner"></div><p>Склейка и загрузка\u2026</p></body></html>'
+            );
+            newWin.document.close();
+            newWin.focus();
+        }
+        stitchAndUpload(images, article, btn, newWin);
     });
     wrapper.appendChild(btn);
 }
@@ -317,24 +333,8 @@ function showUploadToast(message, type, url) {
     }, 6000);
 }
 
-async function stitchAndUpload(images, article, btn) {
+async function stitchAndUpload(images, article, btn, newWin) {
     btn.classList.add('tapx-loading');
-
-    // Открываем окно СРАЗУ (синхронно, до первого await) — браузер не блокирует popup
-    const newWin = window.open('', '_blank');
-    if (newWin) {
-        newWin.document.write(
-            '<!DOCTYPE html><html><head><meta charset="utf-8"><title>TapX</title>' +
-            '<style>*{margin:0;box-sizing:border-box}' +
-            'body{background:#000;color:#fff;font-family:system-ui,sans-serif;' +
-            'display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px}' +
-            '.spinner{width:32px;height:32px;border:3px solid #333;border-top-color:#00ba7c;' +
-            'border-radius:50%;animation:spin 0.8s linear infinite}' +
-            '@keyframes spin{to{transform:rotate(360deg)}}</style></head>' +
-            '<body><div class="spinner"></div><p>Склейка и загрузка\u2026</p></body></html>'
-        );
-        newWin.document.close();
-    }
 
     try {
         const canvas = await buildStitchedCanvas(images, article);
@@ -375,8 +375,9 @@ async function stitchAndUpload(images, article, btn) {
         const { url } = await response.json();
         if (newWin && !newWin.closed) {
             newWin.location.href = url;
+            newWin.focus();
         } else {
-            window.open(url, '_blank', 'noopener,noreferrer');
+            showUploadToast('Готово! Открыть результат', 'success', url);
         }
 
     } catch (err) {
