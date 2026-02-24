@@ -3,10 +3,12 @@
   "name": "TapX — Seamless X.com Puzzles",
   "version": "0.1.0",
   "description": "Removes gaps between split-image puzzle posts on X / Twitter for a seamless, immersive viewing experience.",
-  "permissions": ["activeTab", "storage"],
+  "permissions": ["activeTab", "storage", "downloads"],
   "host_permissions": [
     "https://x.com/*",
-    "https://twitter.com/*"
+    "https://twitter.com/*",
+    "https://taptoview.site/*",
+    "https://cdn.taptoview.site/*"
   ],
   "icons": {
     "16": "icons/icon16.png",

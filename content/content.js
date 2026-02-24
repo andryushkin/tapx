@@ -208,6 +208,10 @@ const STITCH_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
   <path d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm10 0h6v6h-6v-6z"/>
 </svg>`;
 
+const UPLOAD_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92S19.61 16.08 18 16.08z"/>
+</svg>`;
+
 function injectStitchButton(article, images) {
     // Find action bar—try several stable selectors
     let bar = article.querySelector('[role="group"][aria-label]')
@@ -217,62 +221,70 @@ function injectStitchButton(article, images) {
 
     if (article.querySelector('.tapx-stitch-btn')) return;
 
-    const btn = document.createElement('div');
-    btn.className = 'tapx-stitch-btn';
-    btn.title = 'Сшить и скачать оригиналы';
-    btn.innerHTML = STITCH_SVG;
-
-    btn.addEventListener('click', (e) => {
+    // Download button
+    const downloadBtn = document.createElement('div');
+    downloadBtn.className = 'tapx-stitch-btn';
+    downloadBtn.title = 'Сшить и скачать оригиналы';
+    downloadBtn.innerHTML = STITCH_SVG;
+    downloadBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
         stitchAndDownload(images, article);
     });
+    bar.appendChild(downloadBtn);
 
-    bar.appendChild(btn);
+    // Upload button
+    const uploadBtn = document.createElement('div');
+    uploadBtn.className = 'tapx-stitch-btn tapx-upload-btn';
+    uploadBtn.title = 'Поделиться на taptoview.site';
+    uploadBtn.innerHTML = UPLOAD_SVG;
+    uploadBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        stitchAndUpload(images, article, uploadBtn);
+    });
+    bar.appendChild(uploadBtn);
 }
 
 // ─────────────────────────────────────────────
-//  Canvas Stitching & Download
+//  Canvas Stitching & Download / Upload
 // ─────────────────────────────────────────────
 
-async function stitchAndDownload(images, article) {
+/** Build a stitched canvas from puzzle images. Returns the canvas element. */
+async function buildStitchedCanvas(images, article) {
     const urls = images.map(img => originalUrl(img.src));
+    const loaded = await Promise.all(urls.map(loadImage));
 
+    const gridEl = article.querySelector('.tapx-grid-container');
+    const style = gridEl ? gridEl.style.gridTemplateColumns : '';
+    const colMatch = style.match(/repeat\((\d+)/);
+    const cols = colMatch ? parseInt(colMatch[1], 10) : 1;
+    const rows = Math.ceil(loaded.length / cols);
+
+    const tileW = loaded[0].naturalWidth;
+    const tileH = loaded[0].naturalHeight;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = tileW * cols;
+    canvas.height = tileH * rows;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    loaded.forEach((img, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        // +0.5 anti-seam: slightly overpaint to cover sub-pixel gaps
+        ctx.drawImage(img, col * tileW, row * tileH, img.naturalWidth + 0.5, img.naturalHeight + 0.5);
+    });
+
+    return canvas;
+}
+
+async function stitchAndDownload(images, article) {
     try {
-        const loaded = await Promise.all(urls.map(loadImage));
-
-        // Re-use detectLayout logic but based on naturalWidth of loaded images
-        // since original DOM images may already be hidden
-        // Treat images as same X (vertical stack) unless they differ in natural size pattern
-        // For simplicity: use the same detection as visual grid (stored in grid dataset)
-        const gridEl = article.querySelector('.tapx-grid-container');
-        const style = gridEl ? gridEl.style.gridTemplateColumns : '';
-        const colMatch = style.match(/repeat\((\d+)/);
-        const cols = colMatch ? parseInt(colMatch[1], 10) : 1;
-        const rows = Math.ceil(loaded.length / cols);
-
-        // Each tile uses its own naturalWidth/Height for pixel-perfect stitching
-        // For 1-col layout: width = max naturalWidth, stacked vertically
-        const tileW = loaded[0].naturalWidth;
-        const tileH = loaded[0].naturalHeight;
-
-        const canvas = document.createElement('canvas');
-        canvas.width = tileW * cols;
-        canvas.height = tileH * rows;
-        const ctx = canvas.getContext('2d');
-
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        loaded.forEach((img, i) => {
-            const col = i % cols;
-            const row = Math.floor(i / cols);
-            const x = col * tileW;
-            const y = row * tileH;
-            // +0.5 anti-seam: slightly overpaint to cover sub-pixel gaps
-            ctx.drawImage(img, x, y, img.naturalWidth + 0.5, img.naturalHeight + 0.5);
-        });
-
+        const canvas = await buildStitchedCanvas(images, article);
         const username = getUsername(article);
         const tweetId = getTweetId(article);
         const filename = `tapx_${username}_${tweetId}_stitched.jpg`;
@@ -292,10 +304,100 @@ async function stitchAndDownload(images, article) {
             const dataUrl = canvas.toDataURL('image/jpeg', 0.98);
             api.runtime.sendMessage({ action: 'downloadCanvas', dataUrl, filename });
         }
-
     } catch (err) {
         console.error('TapX stitch error:', err);
         alert('TapX: не удалось сшить изображения. Подробности в консоли.');
+    }
+}
+
+function getTweetText(article) {
+    return article.querySelector('[data-testid="tweetText"]')?.innerText || '';
+}
+
+async function fetchAvatarBlob(article) {
+    const avatarImg = article.querySelector('[data-testid^="UserAvatar"] img');
+    if (!avatarImg) return null;
+    try {
+        const resp = await fetch(avatarImg.src);
+        if (!resp.ok) return null;
+        return await resp.blob();
+    } catch {
+        return null;
+    }
+}
+
+function showUploadToast(message, type, url) {
+    const existing = document.querySelector('.tapx-toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = 'tapx-toast' + (type === 'error' ? ' tapx-toast--error' : '');
+
+    if (url) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = message;
+        toast.appendChild(link);
+    } else {
+        toast.textContent = message;
+    }
+
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('tapx-toast--show'));
+    setTimeout(() => {
+        toast.classList.remove('tapx-toast--show');
+        setTimeout(() => toast.remove(), 300);
+    }, 6000);
+}
+
+async function stitchAndUpload(images, article, btn) {
+    btn.classList.add('tapx-loading');
+    try {
+        const canvas = await buildStitchedCanvas(images, article);
+        const imageBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.98));
+
+        const username = getUsername(article);
+        const tweetId = getTweetId(article);
+        const tweetUrl = `https://x.com/${username}/status/${tweetId}`;
+        const tweetText = getTweetText(article);
+        const avatarBlob = await fetchAvatarBlob(article);
+
+        const formData = new FormData();
+        formData.append('image', imageBlob, 'puzzle.jpg');
+        formData.append('username', username);
+        formData.append('tweetId', tweetId);
+        formData.append('tweetUrl', tweetUrl);
+        if (tweetText) formData.append('tweetText', tweetText);
+        if (avatarBlob) formData.append('avatar', avatarBlob, 'avatar.jpg');
+
+        const response = await fetch('https://taptoview.site/api/upload', {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ error: String(response.status), message: response.statusText }));
+            if (response.status === 429) {
+                const retryAfter = response.headers.get('Retry-After') || '3600';
+                const minutes = Math.ceil(parseInt(retryAfter) / 60);
+                showUploadToast(`Лимит загрузок. Попробуйте через ${minutes} мин.`, 'error');
+            } else {
+                showUploadToast(`Ошибка: ${err.message || err.error}`, 'error');
+            }
+            return;
+        }
+
+        const { url } = await response.json();
+        try { await navigator.clipboard.writeText(url); } catch { /* clipboard denied */ }
+        showUploadToast('Ссылка скопирована! Открыть →', 'success', url);
+
+    } catch (err) {
+        console.error('TapX upload error:', err);
+        showUploadToast('Не удалось загрузить. Попробуйте снова.', 'error');
+    } finally {
+        btn.classList.remove('tapx-loading');
     }
 }
 

@@ -7,9 +7,12 @@
     "activeTab",
     "storage",
     "tabs",
+    "downloads",
     "https://x.com/*",
     "https://twitter.com/*",
-    "https://pbs.twimg.com/*"
+    "https://pbs.twimg.com/*",
+    "https://taptoview.site/*",
+    "https://cdn.taptoview.site/*"
   ],
   "icons": {
     "16": "icons/icon16.png",

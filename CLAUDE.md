@@ -10,14 +10,16 @@ tapx/
 ├── manifest-firefox.json      — Firefox MV2 конфиг (browser_action, background.scripts)
 ├── content/
 │   ├── compat.js              — полифил: const api = browser ?? chrome (подключается первым)
-│   ├── content.js             — основная логика: сканирование твитов, DOM-замена, Canvas-склейка
-│   └── seamless.css           — стили: tapx-grid-container, tapx-stitch-btn, tapx-toast
+│   ├── content.js             — основная логика: сканирование твитов, DOM-замена, Canvas-склейка, upload
+│   └── seamless.css           — стили: tapx-grid-container, tapx-stitch-btn, tapx-upload-btn, tapx-toast
 ├── background/
 │   └── background.js          — service worker (Chrome) / background script (Firefox): Downloads API
 ├── popup/
 │   ├── popup.html             — UI: заголовок + toggle on/off
 │   └── popup.js               — синхронизация toggle со storage и открытыми вкладками
 ├── icons/                     — иконки 16/32/48/128px
+├── docs/
+│   └── tapx-integration.md   — полная спецификация API taptoview.site для расширения
 ├── build_extension.py         — сборщик ZIP (python 3.9+), поддерживает --target firefox
 ├── tapx_release.zip           — Chrome релиз (не коммитить)
 ├── tapx_firefox.zip           — Firefox релиз (не коммитить)
@@ -29,8 +31,8 @@ tapx/
 
 ## Разрешения
 
-**Chrome (manifest.json):** `activeTab`, `storage` | host_permissions: `https://x.com/*`, `https://twitter.com/*`
-**Firefox (manifest-firefox.json):** `activeTab`, `storage`, `tabs` + те же хосты внутри `permissions`
+**Chrome (manifest.json):** `activeTab`, `storage`, `downloads` | host_permissions: `https://x.com/*`, `https://twitter.com/*`, `https://taptoview.site/*`, `https://cdn.taptoview.site/*`
+**Firefox (manifest-firefox.json):** `activeTab`, `storage`, `tabs`, `downloads` + те же хосты внутри `permissions`
 
 > `tabs` нужен в Firefox для `browser.tabs.query({ url: [...] })` в popup.js
 
@@ -51,7 +53,7 @@ tapx/
    - Пазл = только `cols === 1` (вертикальный столбик, 2–4 изображения)
    - Создаёт `tapx-grid-container` с CSS Grid, клонирует изображения
    - Скрывает оригинальный контейнер (`display: none`)
-   - Инжектирует кнопку "Сшить и скачать" в action bar
+   - Инжектирует две кнопки в action bar: Download + Upload to taptoview.site
 4. `MutationObserver` с debounce 200ms обрабатывает infinite scroll
 
 ### Ключевые селекторы (стабильные data-testid X.com)
@@ -63,26 +65,27 @@ tapx/
 | Аватар (исключение) | `[data-testid^="UserAvatar"]` |
 | Action bar | `[role="group"][aria-label]` или `[role="group"]` |
 
-### Canvas-склейка (`stitchAndDownload`)
+### Canvas-склейка
+
+Общая логика вынесена в `buildStitchedCanvas(images, article)` → возвращает `canvas`.
 
 - Заменяет `name=small/medium` → `name=orig` для скачивания в 4K
 - Использует `crossOrigin = "anonymous"` для обхода CORS
 - Рисует grid матрицу через `ctx.drawImage` с +0.5px anti-seam
+
+**`stitchAndDownload`** (скачать):
 - **Chrome:** отправляет `dataUrl` в background через `api.runtime.sendMessage`
-- **Firefox:** `canvas.toBlob` → `URL.createObjectURL` → `<a>.click()` прямо из content script (Firefox не поддерживает data-URL в downloads API)
+- **Firefox:** `canvas.toBlob` → `URL.createObjectURL` → `<a>.click()` прямо из content script
 - Имя файла: `tapx_{username}_{tweetId}_stitched.jpg`
 
-### v0.2.0: Upload to tapx.io (планируется)
-
-Планируемый рефактор: `stitchAndDownload()` → `stitchCanvas()` (внутренняя) + `stitchAndDownload()` + `stitchAndUpload()`.
-
-- `stitchAndUpload()` вызывает `uploadToTapx(canvas, article)` → `POST https://api.tapx.io/upload` (FormData)
-- Отправляет: склеенный JPEG blob, username, tweetId, tweetText, tweetUrl, avatar blob
-- `fetchAvatarBlob(article)` — скачивает аватарку через `fetch()` из content script
-- `getTweetText(article)` — `article.querySelector('[data-testid="tweetText"]')?.innerText`
-- Две точки входа: оверлей на изображении (hover) + кнопка в action bar
-- Требует `https://api.tapx.io/*` в host_permissions / permissions обоих манифестов
-- Backend tapx.io — отдельный проект; контракт API зафиксирован в `plan-upload-to-tapx.md`
+**`stitchAndUpload`** (загрузить на taptoview.site) — **реализовано**:
+- `buildStitchedCanvas` → `canvas.toBlob` → `FormData` → `fetch POST https://taptoview.site/api/upload`
+- Upload делается из content script напрямую (CORS `*`, background не нужен)
+- Отправляет: image blob, username, tweetId, tweetUrl, tweetText (опц.), avatar blob (опц.)
+- После успеха: URL копируется в буфер, показывается toast с кликабельной ссылкой (6 сек)
+- `fetchAvatarBlob` — graceful degradation (null при ошибке, upload продолжается)
+- Обработка 429: читает `Retry-After` заголовок, показывает "Попробуйте через X мин."
+- Спецификация API: `docs/tapx-integration.md`
 
 ## Сборка и публикация
 

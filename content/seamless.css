@@ -50,6 +50,17 @@
     background-color: rgba(29, 155, 240, 0.1);
 }
 
+.tapx-stitch-btn.tapx-loading {
+    opacity: 0.5;
+    cursor: default;
+    pointer-events: none;
+}
+
+.tapx-upload-btn:hover {
+    color: rgb(0, 186, 124);
+    background-color: rgba(0, 186, 124, 0.1);
+}
+
 .tapx-stitch-btn svg {
     width: 18px;
     height: 18px;
@@ -88,4 +99,13 @@
     height: 20px;
     flex-shrink: 0;
     border-radius: 4px;
+}
+
+.tapx-toast--error {
+    background: rgba(244, 67, 54, 0.92);
+}
+
+.tapx-toast a {
+    color: #fff;
+    text-decoration: underline;
 }

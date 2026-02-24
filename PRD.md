@@ -111,30 +111,34 @@ TapX — Chrome (MV3) и Firefox (MV2)-расширение, которое:
 
 ---
 
-## Roadmap v0.2.0 — Upload to tapx.io
+## v0.2.0 — Upload to taptoview.site ✅ Реализовано
 
-**Цель:** конвертировать пользователей расширения в посетителей tapx.io (монетизация через рекламу и Pro).
+**Дата:** 2026-02-24
 
-**Детальный план:** см. `plan-upload-to-tapx.md`
+**Цель:** конвертировать пользователей расширения в посетителей taptoview.site (монетизация через рекламу).
 
-### FR-5: Загрузка на tapx.io и открытие страницы
+**Сервис:** `https://taptoview.site` (Cloudflare Workers, production). API-спецификация: `docs/tapx-integration.md`.
 
-Флоу: пользователь нажимает → Canvas-склейка → `POST api.tapx.io/upload` (FormData: image JPEG, username, tweetId, tweetText, tweetUrl, avatar blob) → в ответ `{ url }` → открывается новая вкладка с `url`.
+### FR-5: Загрузка на taptoview.site ✅
 
-Две точки входа (обе делают одно и то же):
-- **Оверлей-кнопка** — появляется при hover в правом нижнем углу изображения
-- **Кнопка в action bar** — всегда видна под твитом
+Флоу: кнопка в action bar → `buildStitchedCanvas` → `POST https://taptoview.site/api/upload` (FormData: image JPEG, username, tweetId, tweetText, tweetUrl, avatar blob) → в ответ `{ id, url, expires }` → URL копируется в буфер обмена → toast с кликабельной ссылкой.
 
-### Технические требования v0.2.0
+- **Кнопка в action bar** (share-иконка, зелёный hover) — всегда видна под твитом
+- Оверлей на hover — **не реализован** (остаётся в backlog)
 
-| Требование | Значение |
+### Технические требования v0.2.0 — выполнено
+
+| Требование | Статус |
 |---|---|
-| Новые host_permissions | `https://api.tapx.io/*` |
-| Аватарка | fetch blob из content script (CORS через host_permissions) |
-| Upload метод | `fetch()` FormData напрямую из content script |
-| Зависимость | Backend tapx.io (отдельный проект) |
+| `buildStitchedCanvas` выделен из `stitchAndDownload` | ✅ |
+| `stitchAndUpload(images, article, btn)` | ✅ |
+| `fetchAvatarBlob(article)` — опционально, graceful | ✅ |
+| `getTweetText(article)` | ✅ |
+| `showUploadToast` — success/error + кликабельная ссылка | ✅ |
+| host_permissions: `taptoview.site`, `cdn.taptoview.site` | ✅ |
+| `downloads` permission в обоих манифестах | ✅ |
 
-### Нефункциональные изменения
+### В backlog
 
-- `stitchAndDownload()` рефакторится: выделяется `stitchCanvas()` → используется и в upload, и в локальном скачивании.
-- `fetchAvatarBlob(article)`, `getTweetText(article)` — новые вспомогательные функции.
+- Оверлей-кнопка при hover на изображении
+- Кнопка "Download from taptoview" (если пазл уже загружен, знаем id)
