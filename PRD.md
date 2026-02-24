@@ -121,10 +121,11 @@ TapX — Chrome (MV3) и Firefox (MV2)-расширение, которое:
 
 ### FR-5: Загрузка на taptoview.site ✅
 
-Флоу: кнопка в action bar → `buildStitchedCanvas` → `POST https://taptoview.site/api/upload` (FormData: image JPEG, username, tweetId, tweetText, tweetUrl, avatar blob) → в ответ `{ id, url, expires }` → URL копируется в буфер обмена → toast с кликабельной ссылкой.
+Флоу: кнопка-оверлей на картинке → `buildStitchedCanvas` → `POST https://taptoview.site/api/upload` (FormData: image JPEG, username, tweetId, tweetText, tweetUrl, avatar blob) → в ответ `{ id, url, expires }` → `window.open(url, '_blank')`.
 
-- **Кнопка в action bar** (share-иконка, зелёный hover) — всегда видна под твитом
-- Оверлей на hover — **не реализован** (остаётся в backlog)
+- **Кнопка-оверлей** (download-arrow SVG) — правый нижний угол картинки, `position: absolute`; полупрозрачный тёмный фон с blur, зелёный hover
+- **tapx-wrapper** (position: relative) оборачивает grid, чтобы кнопка не клипалась `overflow: hidden`
+- **Кнопка в попапе** — "Поделиться на taptoview.site", триггерит `uploadCurrent` через message passing
 
 ### Технические требования v0.2.0 — выполнено
 
@@ -134,11 +135,10 @@ TapX — Chrome (MV3) и Firefox (MV2)-расширение, которое:
 | `stitchAndUpload(images, article, btn)` | ✅ |
 | `fetchAvatarBlob(article)` — опционально, graceful | ✅ |
 | `getTweetText(article)` | ✅ |
-| `showUploadToast` — success/error + кликабельная ссылка | ✅ |
+| `showUploadToast` — только для ошибок (success → window.open) | ✅ |
 | host_permissions: `taptoview.site`, `cdn.taptoview.site` | ✅ |
 | `downloads` permission в обоих манифестах | ✅ |
 
 ### В backlog
 
-- Оверлей-кнопка при hover на изображении
 - Кнопка "Download from taptoview" (если пазл уже загружен, знаем id)

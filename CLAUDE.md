@@ -11,12 +11,12 @@ tapx/
 ├── content/
 │   ├── compat.js              — полифил: const api = browser ?? chrome (подключается первым)
 │   ├── content.js             — основная логика: сканирование твитов, DOM-замена, Canvas-склейка, upload
-│   └── seamless.css           — стили: tapx-grid-container, tapx-stitch-btn, tapx-upload-btn, tapx-toast
+│   └── seamless.css           — стили: tapx-wrapper, tapx-grid-container, tapx-stitch-btn, tapx-toast
 ├── background/
 │   └── background.js          — service worker (Chrome) / background script (Firefox): Downloads API
 ├── popup/
-│   ├── popup.html             — UI: заголовок + toggle on/off
-│   └── popup.js               — синхронизация toggle со storage и открытыми вкладками
+│   ├── popup.html             — UI: заголовок + toggle + кнопка "Поделиться на taptoview.site"
+│   └── popup.js               — toggle + upload-кнопка (sendMessage uploadCurrent в active tab)
 ├── icons/                     — иконки 16/32/48/128px
 ├── docs/
 │   └── tapx-integration.md   — полная спецификация API taptoview.site для расширения
@@ -51,9 +51,9 @@ tapx/
    - Определяет layout через `detectLayout(images)` — читает реальные `getBoundingClientRect()`
    - Если `cols > 1` → **пропускает** (галерея/панорама — не пазл, не трогаем)
    - Пазл = только `cols === 1` (вертикальный столбик, 2–4 изображения)
-   - Создаёт `tapx-grid-container` с CSS Grid, клонирует изображения
+   - Оборачивает `tapx-grid-container` в `tapx-wrapper` (`position: relative`)
    - Скрывает оригинальный контейнер (`display: none`)
-   - Инжектирует две кнопки в action bar: Download + Upload to taptoview.site
+   - Инжектирует одну кнопку-оверлей в правый нижний угол картинки (`.tapx-stitch-btn`, `position: absolute; bottom: 10px; right: 10px`)
 4. `MutationObserver` с debounce 200ms обрабатывает infinite scroll
 
 ### Ключевые селекторы (стабильные data-testid X.com)
@@ -73,19 +73,16 @@ tapx/
 - Использует `crossOrigin = "anonymous"` для обхода CORS
 - Рисует grid матрицу через `ctx.drawImage` с +0.5px anti-seam
 
-**`stitchAndDownload`** (скачать):
-- **Chrome:** отправляет `dataUrl` в background через `api.runtime.sendMessage`
-- **Firefox:** `canvas.toBlob` → `URL.createObjectURL` → `<a>.click()` прямо из content script
-- Имя файла: `tapx_{username}_{tweetId}_stitched.jpg`
-
-**`stitchAndUpload`** (загрузить на taptoview.site) — **реализовано**:
+**`stitchAndUpload`** (поделиться на taptoview.site) — **реализовано**:
 - `buildStitchedCanvas` → `canvas.toBlob` → `FormData` → `fetch POST https://taptoview.site/api/upload`
 - Upload делается из content script напрямую (CORS `*`, background не нужен)
 - Отправляет: image blob, username, tweetId, tweetUrl, tweetText (опц.), avatar blob (опц.)
-- После успеха: URL копируется в буфер, показывается toast с кликабельной ссылкой (6 сек)
+- После успеха: `window.open(url, '_blank', 'noopener,noreferrer')` — открывает результат в новой вкладке
+- Ошибки: toast только для 429 ("Попробуйте через X мин.") и generic
 - `fetchAvatarBlob` — graceful degradation (null при ошибке, upload продолжается)
-- Обработка 429: читает `Retry-After` заголовок, показывает "Попробуйте через X мин."
 - Спецификация API: `docs/tapx-integration.md`
+
+> ⚠️ **`stitchAndDownload` удалена** — кнопка Download убрана. Не восстанавливать без явного запроса.
 
 ## Сборка и публикация
 
