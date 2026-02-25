@@ -102,6 +102,12 @@ python build_extension.py --target firefox   # Firefox → tapx_firefox.zip (~20
 **Firefox тест:** `about:debugging` → This Firefox → Load Temporary Add-on → выбрать `tapx_firefox.zip`
 > ⚠️ Firefox всегда читает `manifest.json` из директории, игнорируя выбранный файл. Тестировать нужно через ZIP, а не через `manifest-firefox.json` напрямую.
 
+### Стриппинг комментариев в build_extension.py
+`build_extension.py` удаляет комментарии из JS/CSS перед упаковкой (`strip_comments(content, filename)`):
+- `/* */` блоки — regex с сохранением `\n` внутри
+- `//` строки — только ведущие (`^\s*//`), inline `//` в конце строки кода — не трогаются
+- ⚠️ Полный JS state machine (7 состояний) **не работает** на `content.js`: CSS attribute selectors `'[data-tapx-hidden="1"]'` содержат `"..."` внутри single-quoted строк → cascade-баг. Используй regex-подход.
+
 ## Известные проблемы / технический долг
 
 1. ~~**Toast-спам**~~ — **Исправлено:** `showToast()` удалена, расширение активно только на `/status/\d+` (страница твита).

@@ -4,9 +4,32 @@
 # ///
 
 import os
+import re
 import sys
 import zipfile
 from pathlib import Path
+
+def strip_js_comments(code: str) -> str:
+    # Remove /* ... */ block comments (preserve newlines inside)
+    def replace_block(m):
+        return '\n' * m.group(0).count('\n')
+    result = re.sub(r'/\*[\s\S]*?\*/', replace_block, code)
+    # Remove lines that are purely // comments (safe: won't touch // inside strings)
+    result = re.sub(r'^[ \t]*//[^\n]*\n?', '', result, flags=re.MULTILINE)
+    return re.sub(r'\n{3,}', '\n\n', result)
+
+
+def strip_css_comments(code: str) -> str:
+    result = re.sub(r'/\*[\s\S]*?\*/', '', code)
+    return re.sub(r'\n{3,}', '\n\n', result)
+
+
+def strip_comments(content: str, filename: str) -> str:
+    if filename.endswith('.js'):
+        return strip_js_comments(content)
+    if filename.endswith('.css'):
+        return strip_css_comments(content)
+    return content
 
 def create_archive(target='chrome'):
     base_dir = Path("/Users/andryushkin/Server/tapx")
@@ -32,7 +55,9 @@ def create_archive(target='chrome'):
 
     with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
         # Manifest always goes in as manifest.json
-        zf.write(manifest_path, "manifest.json")
+        text = manifest_path.read_text(encoding='utf-8')
+        stripped = strip_comments(text, manifest_path.name)
+        zf.writestr("manifest.json", stripped.encode('utf-8'))
 
         for t in targets:
             target_path = base_dir / t
@@ -50,7 +75,12 @@ def create_archive(target='chrome'):
                             continue
                         file_path = Path(root) / file
                         arcname = file_path.relative_to(base_dir)
-                        zf.write(file_path, arcname)
+                        if file_path.suffix in {'.js', '.css'}:
+                            text = file_path.read_text(encoding='utf-8')
+                            stripped = strip_comments(text, file_path.name)
+                            zf.writestr(str(arcname), stripped.encode('utf-8'))
+                        else:
+                            zf.write(file_path, arcname)
 
     # Output verification
     print("\n📦 Archive contents:")

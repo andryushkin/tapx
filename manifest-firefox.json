@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "TapX — Seamless X.com Puzzles",
-  "version": "0.1.0",
-  "description": "Removes gaps between split-image puzzle posts on X / Twitter for a seamless, immersive viewing experience.",
+  "version": "0.2.0",
+  "description": "Merge split-image puzzle posts on X/Twitter into seamless art and share to the taptoview.site gallery.",
   "permissions": [
     "activeTab",
     "storage",
