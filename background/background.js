@@ -5,9 +5,17 @@ const api = typeof browser !== 'undefined' ? browser : chrome;
 
 api.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'openTab') {
-        api.tabs.create({ url: request.url });
-        sendResponse({ success: true });
-        return false;
+        api.tabs.query({ url: 'https://taptoview.site/*' }, (existing) => {
+            if (existing && existing.length > 0) {
+                const tab = existing[0];
+                api.tabs.update(tab.id, { url: request.url, active: true });
+                api.windows.update(tab.windowId, { focused: true });
+            } else {
+                api.tabs.create({ url: request.url });
+            }
+            sendResponse({ success: true });
+        });
+        return true;
     }
     if (request.action === 'downloadCanvas') {
         const base64Data = request.dataUrl;

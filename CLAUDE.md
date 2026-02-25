@@ -79,7 +79,7 @@ tapx/
 - `buildStitchedCanvas` → `canvas.toBlob` → `FormData` → `fetch POST https://taptoview.site/api/upload`
 - Upload делается из content script напрямую (CORS `*`, background не нужен)
 - Отправляет: image blob, username, tweetId, tweetUrl, tweetText (опц.), avatar blob (опц.)
-- После успеха: `newWin.location.href = url` + `newWin.focus()` — навигирует заранее открытую вкладку на результат и выводит её на передний план
+- После успеха: `api.runtime.sendMessage({ action: 'openTab', url })` → background открывает или фокусирует вкладку taptoview.site
 - Ошибки: toast только для 429 ("Попробуйте через X мин.") и generic
 - `fetchAvatarBlob` — graceful degradation (null при ошибке, upload продолжается)
 - Спецификация API: `docs/tapx-integration.md`
@@ -108,13 +108,14 @@ python build_extension.py --target firefox   # Firefox → tapx_firefox.zip (~20
 4. **`revertAll()`** ставит `display: ''` вместо сохранённого исходного значения — может сломать layout если оригинал был `flex`/`grid`.
 5. ~~**`getUsername()`**~~ — **Исправлено:** строгий regex `/^\/([A-Za-z0-9_]{1,50})(?:\/)?$/` исключает служебные пути.
 6. ~~**`chrome.tabs.sendMessage` без обработки ошибок**~~ — **Исправлено:** callback `() => { void api.runtime.lastError; }` подавляет Unchecked error.
-7. ~~**Вкладка открывалась в фоне при upload**~~ — **Исправлено:** `window.open` + `document.write` + `newWin.focus()` вынесены в синхронный click handler в `injectStitchButton`. `newWin` передаётся параметром в `stitchAndUpload(images, article, btn, newWin)`. После `newWin.location.href = url` снова вызывается `newWin.focus()`. Если `newWin = null` (popup upload) — background открывает вкладку через `openTab` action.
-   > ⚠️ **НЕ перемещать `window.open` обратно в `stitchAndUpload`** — браузер открывает вкладку в фоне без возможности `focus()`.
+7. ~~**Вкладка открывалась в фоне при upload**~~ — **Исправлено (v2):** `window.open` полностью убран из click handler. Кнопка-оверлей вызывает `stitchAndUpload(images, article, btn, null)` напрямую. На success → `api.runtime.sendMessage({ action: 'openTab', url })` → background открывает или фокусирует существующую вкладку taptoview.site.
+   > ⚠️ **НЕ возвращать `window.open` в click handler или `stitchAndUpload`** — X.com перехватывал `window.open('', '_blank')`, возвращая null или заглушку.
 8. ~~**Firefox "corrupt" при установке из файла**~~ — **Исправлено:** добавлен `browser_specific_settings.gecko.id = "tapx@taptoview.site"` в `manifest-firefox.json`. Firefox требует gecko ID для установки через `about:addons`. Для временной установки (`about:debugging`) ID не обязателен.
-9. ~~**Firefox: about:blank при клике кнопки на картинке**~~ — **Исправлено:** `newWin.document.write` в Firefox content script бросал exception (XrayWrapper sandbox), что прерывало click handler до вызова `stitchAndUpload`. Фикс: `try/catch` вокруг `document.write`.
-   > ⚠️ **НЕ убирать try/catch вокруг `document.write`** — без него Firefox не запускает upload.
+9. ~~**Firefox: about:blank при клике кнопки на картинке**~~ — **Неактуально:** `newWin.document.write` удалён вместе с `window.open`. Проблема устранена радикально.
 10. ~~**Chrome popup: результат не открывался в новой вкладке**~~ — **Исправлено:** при `newWin = null` (popup upload) используется `api.runtime.sendMessage({ action: 'openTab', url })` → background делает `api.tabs.create({ url })`.
    > background.js обязан иметь handler для `openTab` — без него popup upload не открывает результат.
+12. ~~**Popup кнопки всегда видны**~~ — **Исправлено:** при открытии popup запрашивается `getStatus` из content script. `applyStatus(hasPuzzle, hasGallery)` скрывает кнопки если нет пазла/галереи на странице.
+13. ~~**taptoview.site открывалась дублирующая вкладка**~~ — **Исправлено:** `background.js openTab` теперь делает `tabs.query({ url: 'https://taptoview.site/*' })`. Если вкладка уже открыта — `tabs.update` + `windows.update` (focused); иначе `tabs.create`. `return true` обязателен для async sendResponse.
 11. ~~**«Собрать в столбик»: изображения обрезались**~~ — **Исправлено:** X.com медиа-контейнер использует `position:absolute; top:0; bottom:0` внутри `padding-bottom:56.25%`-спейсера. Любой wrapper внутри absolute обрезается по высоте spacer'а (~317px). CSS ancestor-walking не помогал из-за флекс-цепочки и reply box (~84px) внутри article. Финальный фикс: `stitchForceColumn()` — при `force=true` поднимаемся выше всех absolute предков, прячем весь aspect-ratio блок, вставляем wrapper в нормальный поток. Сшиваем изображения в canvas → показываем как одну `<img width:100%;height:auto>`.
    > ⚠️ **НЕ возвращать CSS ancestor-walking** — не работает из-за position:absolute контейнера и reply box в article.
    > ⚠️ `stitchForceColumn` вставляет wrapper выше absolute-контейнера — это обязательно, иначе canvas обрежется по 317px.

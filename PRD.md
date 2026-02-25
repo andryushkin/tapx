@@ -121,7 +121,7 @@ TapX — Chrome (MV3) и Firefox (MV2)-расширение, которое:
 
 ### FR-5: Загрузка на taptoview.site ✅
 
-Флоу: клик на кнопку-оверлей → синхронно `window.open` + `newWin.focus()` (loading-страница видна сразу) → `buildStitchedCanvas` → `POST https://taptoview.site/api/upload` (FormData: image JPEG, username, tweetId, tweetText, tweetUrl, avatar blob) → в ответ `{ id, url, expires }` → `newWin.location.href = url` + `newWin.focus()`.
+Флоу: клик на кнопку-оверлей → `buildStitchedCanvas` → `POST https://taptoview.site/api/upload` (FormData: image JPEG, username, tweetId, tweetText, tweetUrl, avatar blob) → в ответ `{ id, url, expires }` → background `openTab`: открывает или фокусирует вкладку taptoview.site с результатом.
 
 - **Кнопка-оверлей** (download-arrow SVG) — правый нижний угол картинки, `position: absolute`; полупрозрачный тёмный фон с blur, зелёный hover
 - **tapx-wrapper** (position: relative) оборачивает grid, чтобы кнопка не клипалась `overflow: hidden`
