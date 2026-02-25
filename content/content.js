@@ -162,29 +162,6 @@ function buildGrid(article, images, force = false) {
 
     article.dataset.tapxDone = '1';
 
-    // Build our seamless grid container
-    const grid = document.createElement('div');
-    grid.className = 'tapx-grid-container tapx-loading' + (force ? ' tapx-force-column' : '');
-    grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-    grid.style.gridTemplateRows    = `repeat(${rows}, auto)`;
-    grid.dataset.tapxImages = images.map(img => originalUrl(img.src)).join('|');
-
-    // Clone each image into a cell
-    images.forEach((img) => {
-        const cell  = document.createElement('div');
-        cell.className = 'tapx-grid-cell';
-        // force column: задаём aspect-ratio по натуральным размерам оригинала (он уже загружен)
-        // — это гарантирует правильную высоту ячейки до загрузки клона
-        if (force && img.naturalWidth && img.naturalHeight) {
-            cell.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
-        }
-        const clone = document.createElement('img');
-        clone.src = img.src;
-        clone.alt = img.alt || '';
-        cell.appendChild(clone);
-        grid.appendChild(cell);
-    });
-
     // Find the container holding all images (may also hold tweet text)
     const target = findReplaceTarget(images, article);
     if (!target || !target.parentElement) {
@@ -201,62 +178,122 @@ function buildGrid(article, images, force = false) {
         if (!containsImage) textBlock.appendChild(child.cloneNode(true));
     });
 
-    // Wrap grid so button can be absolutely positioned over it
+    // Wrap so button can be absolutely positioned over content
     const wrapper = document.createElement('div');
     wrapper.className = 'tapx-wrapper';
-    wrapper.appendChild(grid);
 
-    // Insert: [text clone (if any)] → [wrapper] → then hide original target
-    const parent = target.parentElement;
-    if (textBlock.hasChildNodes()) parent.insertBefore(textBlock, target);
-    parent.insertBefore(wrapper, target);
-
-    target.style.display = 'none';
-    target.dataset.tapxHidden = '1';
-
-    // В режиме force (2×2 → столбик) родительские контейнеры X.com имеют фиксированную
-    // высоту и overflow:hidden под aspect-ratio галереи — клипуют наш более высокий wrapper.
-    // Снимаем ограничения инлайн-стилями (выше специфичность CSS-классов).
+    // В force-режиме target находится внутри position:absolute контейнера
+    // (паттерн X.com: padding-bottom spacer + абсолютный overlay).
+    // Если вставить wrapper туда — canvas-img обрежется по высоте spacer'а (~317px).
+    // Поднимаемся выше всех absolute предков, чтобы вставить wrapper в нормальный поток.
+    let hideEl = target;
     if (force) {
-        wrapper.style.height = 'auto';
-        grid.style.height = 'auto';
-
-        // Шаг 1: снимаем overflow и maxHeight чтобы wrapper не обрезался
-        let el = parent;
+        let el = target.parentElement;
         while (el && el !== article) {
-            el.style.overflow = 'visible';
-            el.style.maxHeight = 'none';
-            el.dataset.tapxAncestorFixed = '1';
-            el = el.parentElement;
-        }
-
-        // Шаг 2: получаем реальную высоту wrapper через принудительный reflow.
-        // aspect-ratio ячеек уже установлен через inline style — браузер считает высоту синхронно.
-        let wrapperH = wrapper.offsetHeight;
-
-        // Fallback: аналитически через naturalHeight изображений
-        if (!wrapperH) {
-            const cellW = parent.offsetWidth || 564;
-            images.forEach(img => {
-                if (img.naturalWidth && img.naturalHeight) {
-                    wrapperH += Math.round(cellW * img.naturalHeight / img.naturalWidth);
-                }
-            });
-        }
-
-        // Шаг 3: устанавливаем явную высоту в px на всех предках.
-        // height:auto не работает на flex items (контейнер растягивает их на свою высоту).
-        if (wrapperH > 0) {
-            el = parent;
-            while (el && el !== article) {
-                el.style.height = wrapperH + 'px';
-                el.style.minHeight = wrapperH + 'px';
+            const pos = getComputedStyle(el).position;
+            if (pos === 'absolute' || pos === 'fixed') {
+                hideEl = el;
                 el = el.parentElement;
+            } else {
+                // Первый не-absolute предок: если проходили через absolute — прячем его тоже
+                // (он содержит и spacer, и absolute overlay)
+                if (hideEl !== target) hideEl = el;
+                break;
             }
         }
     }
+    const parent = hideEl.parentElement;
 
+    // Insert: [text clone (if any)] → [wrapper] → then hide hideEl
+    if (textBlock.hasChildNodes()) parent.insertBefore(textBlock, hideEl);
+    parent.insertBefore(wrapper, hideEl);
+
+    hideEl.style.display = 'none';
+    hideEl.dataset.tapxHidden = '1';
+
+    if (force) {
+        // В force-режиме сшиваем изображения в canvas и показываем как одну картинку.
+        // Wrapper вставлен в нормальный поток — никаких ограничений высоты.
+        stitchForceColumn(images, article, wrapper);
+        return;
+    }
+
+    // Normal puzzle: CSS seamless grid
+    const grid = document.createElement('div');
+    grid.className = 'tapx-grid-container tapx-loading';
+    grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    grid.style.gridTemplateRows    = `repeat(${rows}, auto)`;
+    grid.dataset.tapxImages = images.map(img => originalUrl(img.src)).join('|');
+
+    images.forEach((img) => {
+        const cell  = document.createElement('div');
+        cell.className = 'tapx-grid-cell';
+        const clone = document.createElement('img');
+        clone.src = img.src;
+        clone.alt = img.alt || '';
+        cell.appendChild(clone);
+        grid.appendChild(cell);
+    });
+
+    wrapper.appendChild(grid);
     requestAnimationFrame(() => grid.classList.remove('tapx-loading'));
+    injectStitchButton(article, images, wrapper);
+}
+
+/**
+ * Force-column mode: stitch images into a canvas and display as a single <img>.
+ * Completely bypasses X.com ancestor overflow/height constraints.
+ */
+async function stitchForceColumn(images, article, wrapper) {
+    const placeholder = document.createElement('div');
+    placeholder.style.cssText =
+        'display:flex;align-items:center;justify-content:center;' +
+        'min-height:120px;color:#888;font-family:system-ui,sans-serif;font-size:13px;';
+    placeholder.textContent = 'Сшивка\u2026';
+    wrapper.appendChild(placeholder);
+
+    try {
+        // Загружаем с crossOrigin — те же URL, вероятно уже в кеше браузера
+        const loaded = await Promise.all(images.map(img => new Promise((res, rej) => {
+            const el = new Image();
+            el.crossOrigin = 'anonymous';
+            el.onload  = () => res(el);
+            el.onerror = () => rej(new Error('load failed: ' + img.src));
+            el.src = img.src;
+        })));
+
+        // Рисуем вертикальный стек на canvas в натуральном разрешении
+        const w = loaded[0].naturalWidth || 900;
+        const heights = loaded.map(img =>
+            img.naturalWidth ? Math.round(w * img.naturalHeight / img.naturalWidth) : w
+        );
+        const totalH = heights.reduce((a, b) => a + b, 0);
+
+        const canvas = document.createElement('canvas');
+        canvas.width  = w;
+        canvas.height = totalH;
+        const ctx = canvas.getContext('2d');
+
+        let y = 0;
+        loaded.forEach((img, i) => {
+            ctx.drawImage(img, 0, y, w, heights[i]);
+            y += heights[i];
+        });
+
+        const blobUrl = await new Promise(res =>
+            canvas.toBlob(b => res(URL.createObjectURL(b)), 'image/jpeg', 0.95)
+        );
+
+        const stitchedImg = document.createElement('img');
+        stitchedImg.src = blobUrl;
+        stitchedImg.style.cssText = 'width:100%;height:auto;display:block;border-radius:16px;';
+        stitchedImg.alt = '';
+        placeholder.replaceWith(stitchedImg);
+
+    } catch (e) {
+        console.error('TapX: stitchForceColumn failed', e);
+        placeholder.textContent = 'Ошибка сшивки';
+    }
 
     injectStitchButton(article, images, wrapper);
 }
