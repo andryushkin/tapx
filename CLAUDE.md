@@ -15,7 +15,7 @@ tapx/
 ├── background/
 │   └── background.js          — service worker (Chrome) / background script (Firefox): Downloads API + openTab action
 ├── popup/
-│   ├── popup.html             — UI: заголовок + toggle + кнопки "Stack into column" и "Share on taptoview.site"
+│   ├── popup.html             — UI: заголовок-ссылка TapX + toggle + кнопки "Merge" и "Save Stitched" + ссылка Gallery
 │   └── popup.js               — toggle + collapse-кнопка (forceColumn) + upload-кнопка (uploadCurrent)
 ├── icons/                     — иконки 16/32/48/128px
 ├── docs/
