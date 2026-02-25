@@ -17,21 +17,6 @@ api.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
         return true;
     }
-    if (request.action === 'downloadCanvas') {
-        const base64Data = request.dataUrl;
-
-        // Use Downloads API to avoid blob URL restrictions in Background fetch
-        api.downloads.download({
-            url: base64Data,
-            filename: request.filename,
-            saveAs: true
-        });
-
-        // No tracking implementation, ensuring privacy.
-
-        sendResponse({ success: true });
-        return true;
-    }
 });
 
 // Initialize settings on installation

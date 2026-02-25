@@ -3,7 +3,7 @@
   "name": "TapX — Seamless X.com Puzzles",
   "version": "0.2.0",
   "description": "Merge split-image puzzle posts on X/Twitter into seamless art and share to the taptoview.site gallery.",
-  "permissions": ["activeTab", "storage", "downloads"],
+  "permissions": ["activeTab", "storage"],
   "host_permissions": [
     "https://x.com/*",
     "https://twitter.com/*",
