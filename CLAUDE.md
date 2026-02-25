@@ -15,8 +15,8 @@ tapx/
 ├── background/
 │   └── background.js          — service worker (Chrome) / background script (Firefox): Downloads API + openTab action
 ├── popup/
-│   ├── popup.html             — UI: заголовок + toggle + кнопка "Поделиться на taptoview.site"
-│   └── popup.js               — toggle + upload-кнопка (sendMessage uploadCurrent в active tab)
+│   ├── popup.html             — UI: заголовок + toggle + кнопки "Собрать в столбик" и "Поделиться на taptoview.site"
+│   └── popup.js               — toggle + collapse-кнопка (forceColumn) + upload-кнопка (uploadCurrent)
 ├── icons/                     — иконки 16/32/48/128px
 ├── docs/
 │   └── tapx-integration.md   — полная спецификация API taptoview.site для расширения
@@ -47,13 +47,15 @@ tapx/
    - Пропускает твиты с < 2 изображений
    - Ставит lock `pending`, ждёт загрузки изображений (`img.complete && naturalWidth > 0`), затем вызывает `buildGrid()`
    - Fallback-таймер 800ms — строит grid даже если изображения не загрузились
-4. `buildGrid()`:
+4. `buildGrid(article, images, force=false)`:
    - Определяет layout через `detectLayout(images)` — читает реальные `getBoundingClientRect()`
-   - Если `cols > 1` → **пропускает** (галерея/панорама — не пазл, не трогаем)
+   - Если `cols > 1` и `!force` → **пропускает** (`tapxDone='skip'`, галерея/панорама — не трогаем)
    - Пазл = только `cols === 1` (вертикальный столбик, 2–4 изображения)
+   - `force=true` → принудительно `cols=1, rows=images.length` (2×2 → столбик по кнопке из popup)
    - Оборачивает `tapx-grid-container` в `tapx-wrapper` (`position: relative`)
    - Скрывает оригинальный контейнер (`display: none`)
    - Инжектирует одну кнопку-оверлей в правый нижний угол картинки (`.tapx-stitch-btn`, `position: absolute; bottom: 10px; right: 10px`)
+   - При `force=true`: проходит вверх по DOM от `parent` до `article`, снимает `overflow:hidden` и фиксированную высоту у контейнеров X.com (отмечает `data-tapx-ancestor-fixed`)
 4. `MutationObserver` с debounce 200ms обрабатывает infinite scroll
 
 ### Ключевые селекторы (стабильные data-testid X.com)
@@ -113,6 +115,8 @@ python build_extension.py --target firefox   # Firefox → tapx_firefox.zip (~20
    > ⚠️ **НЕ убирать try/catch вокруг `document.write`** — без него Firefox не запускает upload.
 10. ~~**Chrome popup: результат не открывался в новой вкладке**~~ — **Исправлено:** при `newWin = null` (popup upload) используется `api.runtime.sendMessage({ action: 'openTab', url })` → background делает `api.tabs.create({ url })`.
    > background.js обязан иметь handler для `openTab` — без него popup upload не открывает результат.
+11. ~~**«Собрать в столбик»: видно только первое изображение**~~ — **Исправлено:** X.com устанавливает фиксированную высоту + `overflow:hidden` на родительский контейнер 2×2 галереи. При `force=true` в `buildGrid` после вставки wrapper проходим вверх по DOM (`while el !== article`) и снимаем ограничения inline styles: `el.style.overflow='visible'; el.style.height='auto'; el.style.maxHeight='none'`. `revertAll()` восстанавливает через `= ''`.
+   > ⚠️ Без этой очистки видно только первое изображение из N (клип по высоте 2×2 галереи).
 
 > **Архитектурное решение:** расширение намеренно работает только на страницах твитов (`/status/\d+`), а не в ленте — пазл в ленте не виден целиком, обработка там лишена смысла.
 

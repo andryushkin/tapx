@@ -139,6 +139,16 @@ TapX — Chrome (MV3) и Firefox (MV2)-расширение, которое:
 | host_permissions: `taptoview.site`, `cdn.taptoview.site` | ✅ |
 | `downloads` permission в обоих манифестах | ✅ |
 
+### FR-6: Кнопка «Собрать в столбик» ✅
+
+Для твитов, где автор опубликовал пазл как галерею 2×2 (X.com выбрал layout автоматически).
+TapX пропускает такие твиты (`tapxDone='skip'`). Ручная сборка через popup:
+
+- **Popup кнопка** `#collapse-btn` (иконка 2×2 SVG) → `forceColumn` message → content.js
+- `buildGrid(article, images, true)` — принудительно `cols=1`, игнорирует detectLayout
+- После сборки появляется `.tapx-stitch-btn` → пользователь жмёт → обычный upload flow
+- Fix: снятие `overflow:hidden` + фиксированной высоты на родительских контейнерах X.com
+
 ### В backlog
 
 - Кнопка "Download from taptoview" (если пазл уже загружен, знаем id)
