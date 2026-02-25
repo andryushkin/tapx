@@ -65,6 +65,7 @@ TapX — Chrome (MV3) и Firefox (MV2)-расширение, которое:
 
 - `MutationObserver` с debounce 200 мс перехватывает динамически добавляемые твиты.
 - `scanAll()` проверяет `isOnTweetPage()` перед обработкой — в ленте расширение не работает.
+- **Virtual scroll persistence:** X.com пересоздаёт DOM-элемент при возврате скролла. `forceColumnTweets` Set запоминает ID force-stitched твитов — `processArticle` автоматически восстанавливает склейку для пересозданных элементов.
 
 ---
 

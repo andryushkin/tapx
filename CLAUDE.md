@@ -15,7 +15,7 @@ tapx/
 ├── background/
 │   └── background.js          — service worker (Chrome) / background script (Firefox): Downloads API + openTab action
 ├── popup/
-│   ├── popup.html             — UI: заголовок + toggle + кнопки "Собрать в столбик" и "Поделиться на taptoview.site"
+│   ├── popup.html             — UI: заголовок + toggle + кнопки "Stack into column" и "Share on taptoview.site"
 │   └── popup.js               — toggle + collapse-кнопка (forceColumn) + upload-кнопка (uploadCurrent)
 ├── icons/                     — иконки 16/32/48/128px
 ├── docs/
@@ -47,6 +47,7 @@ tapx/
    - Пропускает твиты с < 2 изображений
    - Ставит lock `pending`, ждёт загрузки изображений (`img.complete && naturalWidth > 0`), затем вызывает `buildGrid()`
    - Fallback-таймер 800ms — строит grid даже если изображения не загрузились
+   - Проверяет `forceColumnTweets` Set — если tweet ID найден, вызывает `buildGrid(article, images, true)` автоматически (восстановление после virtual scroll)
 4. `buildGrid(article, images, force=false)`:
    - Определяет layout через `detectLayout(images)` — читает реальные `getBoundingClientRect()`
    - Если `cols > 1` и `!force` → **пропускает** (`tapxDone='skip'`, галерея/панорама — не трогаем)
@@ -121,6 +122,7 @@ python build_extension.py --target firefox   # Firefox → tapx_firefox.zip (~20
 11. ~~**«Собрать в столбик»: изображения обрезались**~~ — **Исправлено:** X.com медиа-контейнер использует `position:absolute; top:0; bottom:0` внутри `padding-bottom:56.25%`-спейсера. Любой wrapper внутри absolute обрезается по высоте spacer'а (~317px). CSS ancestor-walking не помогал из-за флекс-цепочки и reply box (~84px) внутри article. Финальный фикс: `stitchForceColumn()` — при `force=true` поднимаемся выше всех absolute предков, прячем весь aspect-ratio блок, вставляем wrapper в нормальный поток. Сшиваем изображения в canvas → показываем как одну `<img width:100%;height:auto>`.
    > ⚠️ **НЕ возвращать CSS ancestor-walking** — не работает из-за position:absolute контейнера и reply box в article.
    > ⚠️ `stitchForceColumn` вставляет wrapper выше absolute-контейнера — это обязательно, иначе canvas обрежется по 317px.
+14. ~~**Force-stitched твит сбрасывался после виртуального скролла**~~ — **Исправлено:** X.com удаляет и пересоздаёт DOM при virtual scroll. `tapxDone` терялся. Фикс: `const forceColumnTweets = new Set()` — при `forceColumn` сохраняем `getTweetId(article)` в Set; `processArticle` проверяет Set через `shouldForce = forceColumnTweets.has(id)` и передаёт в `buildGrid`. Set живёт в памяти content script, очищается при перезагрузке страницы — корректно.
 
 > **Архитектурное решение:** расширение намеренно работает только на страницах твитов (`/status/\d+`), а не в ленте — пазл в ленте не виден целиком, обработка там лишена смысла.
 
