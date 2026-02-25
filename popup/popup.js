@@ -74,6 +74,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Diagnostics button
+    const diagBtn = document.getElementById('diag-btn');
+    diagBtn.addEventListener('click', () => {
+        api.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            const tab = tabs[0];
+            if (!tab) return;
+            api.tabs.sendMessage(tab.id, { action: 'tapxDiag' }, () => {
+                void api.runtime.lastError;
+            });
+        });
+    });
+
     // Listen for toggle changes
     toggleSwitch.addEventListener('change', (e) => {
         const isEnabled = e.target.checked;

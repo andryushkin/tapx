@@ -31,6 +31,16 @@
     display: block;
 }
 
+/* Force-column mode: show full images without cropping */
+.tapx-grid-container.tapx-force-column .tapx-grid-cell {
+    height: auto;
+}
+
+.tapx-grid-container.tapx-force-column .tapx-grid-cell img {
+    height: 100%;
+    object-fit: contain;
+}
+
 /* Wrapper for positioning the overlay button */
 .tapx-wrapper {
     position: relative;

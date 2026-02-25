@@ -38,6 +38,10 @@ api.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({ ok: true });
         stitchAndUpload(images, article, btn, null);
         return false;
+    } else if (msg.action === 'tapxDiag') {
+        tapxShowDiag();
+        sendResponse({ ok: true });
+        return false;
     } else if (msg.action === 'forceColumn') {
         const article = document.querySelector('article[data-tapx-done="skip"]');
         if (!article) {
@@ -160,7 +164,7 @@ function buildGrid(article, images, force = false) {
 
     // Build our seamless grid container
     const grid = document.createElement('div');
-    grid.className = 'tapx-grid-container tapx-loading';
+    grid.className = 'tapx-grid-container tapx-loading' + (force ? ' tapx-force-column' : '');
     grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
     grid.style.gridTemplateRows    = `repeat(${rows}, auto)`;
     grid.dataset.tapxImages = images.map(img => originalUrl(img.src)).join('|');
@@ -169,6 +173,11 @@ function buildGrid(article, images, force = false) {
     images.forEach((img) => {
         const cell  = document.createElement('div');
         cell.className = 'tapx-grid-cell';
+        // force column: задаём aspect-ratio по натуральным размерам оригинала (он уже загружен)
+        // — это гарантирует правильную высоту ячейки до загрузки клона
+        if (force && img.naturalWidth && img.naturalHeight) {
+            cell.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
+        }
         const clone = document.createElement('img');
         clone.src = img.src;
         clone.alt = img.alt || '';
@@ -209,13 +218,41 @@ function buildGrid(article, images, force = false) {
     // высоту и overflow:hidden под aspect-ratio галереи — клипуют наш более высокий wrapper.
     // Снимаем ограничения инлайн-стилями (выше специфичность CSS-классов).
     if (force) {
+        wrapper.style.height = 'auto';
+        grid.style.height = 'auto';
+
+        // Шаг 1: снимаем overflow и maxHeight чтобы wrapper не обрезался
         let el = parent;
         while (el && el !== article) {
             el.style.overflow = 'visible';
-            el.style.height = 'auto';
             el.style.maxHeight = 'none';
             el.dataset.tapxAncestorFixed = '1';
             el = el.parentElement;
+        }
+
+        // Шаг 2: получаем реальную высоту wrapper через принудительный reflow.
+        // aspect-ratio ячеек уже установлен через inline style — браузер считает высоту синхронно.
+        let wrapperH = wrapper.offsetHeight;
+
+        // Fallback: аналитически через naturalHeight изображений
+        if (!wrapperH) {
+            const cellW = parent.offsetWidth || 564;
+            images.forEach(img => {
+                if (img.naturalWidth && img.naturalHeight) {
+                    wrapperH += Math.round(cellW * img.naturalHeight / img.naturalWidth);
+                }
+            });
+        }
+
+        // Шаг 3: устанавливаем явную высоту в px на всех предках.
+        // height:auto не работает на flex items (контейнер растягивает их на свою высоту).
+        if (wrapperH > 0) {
+            el = parent;
+            while (el && el !== article) {
+                el.style.height = wrapperH + 'px';
+                el.style.minHeight = wrapperH + 'px';
+                el = el.parentElement;
+            }
         }
     }
 
@@ -236,6 +273,7 @@ function revertAll() {
         el.style.overflow = '';
         el.style.height = '';
         el.style.maxHeight = '';
+        el.style.minHeight = '';
         delete el.dataset.tapxAncestorFixed;
     });
     document.querySelectorAll('[data-testid="tweet"]').forEach(a => {
@@ -455,6 +493,93 @@ function getTweetId(article) {
         if (m) return m[1];
     }
     return Date.now().toString();
+}
+
+// ─────────────────────────────────────────────
+//  Diagnostics overlay
+// ─────────────────────────────────────────────
+
+function tapxShowDiag() {
+    const existing = document.getElementById('tapx-diag-overlay');
+    if (existing) { existing.remove(); return; }
+
+    const lines = [];
+
+    const containers = document.querySelectorAll('.tapx-grid-container');
+    if (!containers.length) {
+        lines.push('Нет .tapx-grid-container на странице');
+    }
+
+    containers.forEach((grid, gi) => {
+        const gr = grid.getBoundingClientRect();
+        const isForce = grid.classList.contains('tapx-force-column');
+        const gcs = getComputedStyle(grid);
+        lines.push(`GRID[${gi}] force=${isForce} rect=${Math.round(gr.width)}x${Math.round(gr.height)}`);
+        lines.push(`  cols="${grid.style.gridTemplateColumns}" rows="${grid.style.gridTemplateRows}"`);
+        lines.push(`  computed: display=${gcs.display} overflow=${gcs.overflow} height=${gcs.height}`);
+
+        grid.querySelectorAll('.tapx-grid-cell').forEach((cell, ci) => {
+            const cr = cell.getBoundingClientRect();
+            const ccs = getComputedStyle(cell);
+            lines.push(`  CELL[${ci}] rect=${Math.round(cr.width)}x${Math.round(cr.height)}`);
+            lines.push(`    h=${ccs.height} overflow=${ccs.overflow} aspect=${ccs.aspectRatio} inline-aspect="${cell.style.aspectRatio}"`);
+            const img = cell.querySelector('img');
+            if (img) {
+                const ir = img.getBoundingClientRect();
+                const ics = getComputedStyle(img);
+                lines.push(`    IMG nat=${img.naturalWidth}x${img.naturalHeight} rect=${Math.round(ir.width)}x${Math.round(ir.height)}`);
+                lines.push(`      h=${ics.height} object-fit=${ics.objectFit}`);
+            }
+        });
+    });
+
+    lines.push('');
+    lines.push('ANCESTORS (tapx-ancestor-fixed):');
+    const ancestors = document.querySelectorAll('[data-tapx-ancestor-fixed]');
+    if (!ancestors.length) {
+        lines.push('  нет');
+    }
+    ancestors.forEach((el, i) => {
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        const pr = el.parentElement ? el.parentElement.getBoundingClientRect() : null;
+        const pcs = el.parentElement ? getComputedStyle(el.parentElement) : null;
+        lines.push(`  [${i}] ${el.tagName} rect=${Math.round(r.width)}x${Math.round(r.height)}`);
+        lines.push(`    computed: h=${cs.height} minH=${cs.minHeight} maxH=${cs.maxHeight} overflow=${cs.overflow}`);
+        lines.push(`    flex:     display=${cs.display} alignSelf=${cs.alignSelf} flexShrink=${cs.flexShrink}`);
+        lines.push(`    inline:   h="${el.style.height}" alignSelf="${el.style.alignSelf}"`);
+        if (pcs) lines.push(`    parent:   display=${pcs.display} alignItems=${pcs.alignItems} h=${pcs.height} rect=${pr ? Math.round(pr.height) : '?'}px`);
+    });
+
+    const wrapper = document.querySelector('.tapx-wrapper');
+    if (wrapper) {
+        const wr = wrapper.getBoundingClientRect();
+        const wcs = getComputedStyle(wrapper);
+        lines.push('');
+        lines.push(`WRAPPER rect=${Math.round(wr.width)}x${Math.round(wr.height)}`);
+        lines.push(`  computed: overflow=${wcs.overflow} h=${wcs.height}`);
+        lines.push(`  inline: h="${wrapper.style.height}"`);
+    }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'tapx-diag-overlay';
+    overlay.style.cssText =
+        'position:fixed;bottom:10px;right:10px;max-width:520px;max-height:70vh;' +
+        'overflow:auto;background:#111;color:#ddd;font-family:monospace;font-size:11px;' +
+        'line-height:1.6;padding:12px 16px;border-radius:8px;z-index:999999;' +
+        'border:1px solid #555;white-space:pre;box-shadow:0 4px 24px rgba(0,0,0,0.9)';
+
+    const title = document.createElement('div');
+    title.style.cssText = 'font-size:12px;font-weight:bold;color:#00ba7c;margin-bottom:8px';
+    title.textContent = '=== TAPX DIAG (клик — закрыть) ===';
+
+    const body = document.createElement('div');
+    body.textContent = lines.join('\n');
+
+    overlay.appendChild(title);
+    overlay.appendChild(body);
+    overlay.addEventListener('click', () => overlay.remove());
+    document.body.appendChild(overlay);
 }
 
 // ─────────────────────────────────────────────
