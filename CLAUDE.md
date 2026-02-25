@@ -83,6 +83,8 @@ tapx/
 - Ошибки: toast только для 429 ("Попробуйте через X мин.") и generic
 - `fetchAvatarBlob` — graceful degradation (null при ошибке, upload продолжается)
 - Спецификация API: `docs/tapx-integration.md`
+- Состояния кнопки управляются через `setBtnState(btn, state)`: `loading` → спиннер; `success` → галочка (1.5с); `error` → крест (2с → idle). `finally` убран — `setBtnState` сам возвращает в idle.
+- Заглушка `btn` в `uploadCurrent` обязана иметь `innerHTML: ''` иначе `setBtnState` падает.
 
 > ⚠️ **`stitchAndDownload` удалена** — кнопка Download убрана. Не восстанавливать без явного запроса.
 

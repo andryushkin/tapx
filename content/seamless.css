@@ -74,15 +74,52 @@
 }
 
 .tapx-stitch-btn.tapx-loading {
-    opacity: 0.5;
     cursor: default;
     pointer-events: none;
+    background: rgba(0, 0, 0, 0.65);
+}
+.tapx-stitch-btn.tapx-loading svg {
+    animation: tapx-spin 0.8s linear infinite;
 }
 
 .tapx-stitch-btn svg {
     width: 18px;
     height: 18px;
     fill: currentColor;
+}
+
+@keyframes tapx-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+@keyframes tapx-pop {
+    0%   { transform: scale(0.5); opacity: 0; }
+    60%  { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(1);   opacity: 1; }
+}
+
+@keyframes tapx-check-draw {
+    from { stroke-dashoffset: 30; opacity: 0; }
+    to   { stroke-dashoffset: 0;  opacity: 1; }
+}
+
+.tapx-stitch-btn.tapx-success {
+    cursor: default;
+    pointer-events: none;
+    background: rgba(0, 186, 124, 0.95);
+}
+.tapx-stitch-btn.tapx-success svg {
+    animation: tapx-pop 0.3s ease-out forwards;
+}
+
+.tapx-stitch-btn.tapx-error {
+    cursor: default;
+    pointer-events: none;
+    background: rgba(220, 50, 50, 0.92);
+}
+.tapx-stitch-btn.tapx-error svg {
+    animation: tapx-pop 0.3s ease-out forwards;
 }
 
 /* Toast notification */

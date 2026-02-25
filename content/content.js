@@ -34,7 +34,7 @@ api.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             return false;
         }
         const images = getMediaImages(article);
-        const btn = article.querySelector('.tapx-stitch-btn') || { classList: { add: () => {}, remove: () => {} } };
+        const btn = article.querySelector('.tapx-stitch-btn') || { classList: { add: () => {}, remove: () => {} }, innerHTML: '' };
         sendResponse({ ok: true });
         stitchAndUpload(images, article, btn, null);
         return false;
@@ -337,6 +337,46 @@ const UPLOAD_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
   <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
 </svg>`;
 
+const SPINNER_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor"
+    stroke-width="2.5" stroke-linecap="round" stroke-dasharray="42 15"/>
+</svg>`;
+
+const SUCCESS_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <path d="M4 13l5 5L20 7" fill="none" stroke="currentColor"
+    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+    stroke-dasharray="30" stroke-dashoffset="30"
+    style="animation: tapx-check-draw 0.35s ease-out 0.05s forwards;"/>
+</svg>`;
+
+const ERROR_SVG = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor"
+    stroke-width="2.5" stroke-linecap="round"/>
+</svg>`;
+
+const BTN_STATE_CLASSES = ['tapx-loading', 'tapx-success', 'tapx-error'];
+
+function setBtnState(btn, state) {
+    BTN_STATE_CLASSES.forEach(cls => btn.classList.remove(cls));
+    switch (state) {
+        case 'loading':
+            btn.innerHTML = SPINNER_SVG;
+            btn.classList.add('tapx-loading');
+            break;
+        case 'success':
+            btn.innerHTML = SUCCESS_SVG;
+            btn.classList.add('tapx-success');
+            break;
+        case 'error':
+            btn.innerHTML = ERROR_SVG;
+            btn.classList.add('tapx-error');
+            setTimeout(() => setBtnState(btn, 'idle'), 2000);
+            break;
+        default:
+            btn.innerHTML = UPLOAD_SVG;
+    }
+}
+
 function injectStitchButton(article, images, wrapper) {
     if (wrapper.querySelector('.tapx-stitch-btn')) return;
 
@@ -431,7 +471,7 @@ function showUploadToast(message, type, url) {
 }
 
 async function stitchAndUpload(images, article, btn, newWin) {
-    btn.classList.add('tapx-loading');
+    setBtnState(btn, 'loading');
 
     try {
         const canvas = await buildStitchedCanvas(images, article);
@@ -459,6 +499,7 @@ async function stitchAndUpload(images, article, btn, newWin) {
         if (!response.ok) {
             const err = await response.json().catch(() => ({ error: String(response.status), message: response.statusText }));
             if (newWin && !newWin.closed) newWin.close();
+            setBtnState(btn, 'error');
             if (response.status === 429) {
                 const retryAfter = response.headers.get('Retry-After') || '3600';
                 const minutes = Math.ceil(parseInt(retryAfter) / 60);
@@ -470,6 +511,9 @@ async function stitchAndUpload(images, article, btn, newWin) {
         }
 
         const { url } = await response.json();
+        setBtnState(btn, 'success');
+        setTimeout(() => setBtnState(btn, 'idle'), 1500);
+
         if (newWin && !newWin.closed) {
             newWin.location.href = url;
             newWin.focus();
@@ -483,9 +527,8 @@ async function stitchAndUpload(images, article, btn, newWin) {
     } catch (err) {
         if (newWin && !newWin.closed) newWin.close();
         console.error('TapX upload error:', err);
+        setBtnState(btn, 'error');
         showUploadToast('Не удалось загрузить. Попробуйте снова.', 'error');
-    } finally {
-        btn.classList.remove('tapx-loading');
     }
 }
 
