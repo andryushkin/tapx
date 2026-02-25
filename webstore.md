@@ -12,25 +12,27 @@
 
 ---
 
-TapX removes the distracting gaps between split-image ("puzzle") posts on X / Twitter — automatically, with zero clicks.
+TapX repairs split-image ("puzzle") posts on X / Twitter into seamless art — and with one tap shares the stitched result to the taptoview.site gallery.
 
-When artists post multi-panel illustrations or creators use the "tap to view" post format as 2–4 vertical image tiles, X's grid layout forces visible white spacing between each piece. TapX patches that in real time so every puzzle post looks like one seamless, continuous artwork — exactly as the creator intended.
+When artists post multi-panel illustrations as 2–4 stacked tiles, X's layout forces visible gaps between each piece. TapX removes them instantly. Then a single click stitches all panels together and opens your personal gallery page — ready to share or bookmark.
 
 **What TapX does:**
-• Instantly removes gaps between split images on X and Twitter
-• Works automatically on tweet pages — no settings, no toggles
-• Detects vertical puzzle layouts; leaves galleries and panoramas untouched
-• Lightweight — no background processes, no data collected
+• Automatically removes gaps between split-image puzzle posts on X and Twitter
+• One-click Share: stitch all panels → upload to taptoview.site gallery → gallery opens instantly
+• "Merge" button in popup: collapse 2×2 gallery posts into a single vertical stitch
+• Detects puzzle layouts with pixel precision; leaves regular galleries and panoramas untouched
+• All stitching is local (Canvas API) — image is uploaded only when you click Share
+• Lightweight — under 20 KB; Manifest V3
 
 **Who it's for:**
-• Digital artists and illustrators who post multi-panel puzzle content
-• Creators using the "tap to view" multi-panel format
-• Anyone tired of broken-up visuals interrupting their feed
+• Fans of digital art and illustration puzzle posts
+• Collectors who want to share or save multi-panel artwork
+• Anyone tired of gaps breaking up split-image visuals
 
 **How it works:**
-TapX uses stable X.com selectors to detect multi-image tweet layouts. When a vertical puzzle is found, it rebuilds the display as a seamless grid — no flicker, no layout breakage. No configuration needed.
+TapX scans tweet pages for vertical split-image layouts using stable X.com selectors. It rebuilds the display with zero gaps using a CSS grid overlay. The Share button (overlay on the image) stitches all panels via Canvas API and uploads to taptoview.site — then opens or focuses the gallery tab.
 
-Privacy-first · No accounts · No tracking · Manifest V3
+Privacy-first · No tracking · No login required · Manifest V3
 
 ---
 
@@ -44,6 +46,9 @@ Stores the user's on/off toggle preference locally so the setting persists acros
 
 **Host permissions — x.com/\*, twitter.com/\***
 Required for the content script to run on X and Twitter pages. The script reads the DOM structure of tweet pages to detect split-image puzzle posts and remove the spacing between image tiles.
+
+**Host permissions — taptoview.site/\*, cdn.taptoview.site/\***
+Required to upload the stitched canvas image to taptoview.site when the user clicks the Share button. The POST request is made directly from the content script using the Fetch API. No data is sent without explicit user action (button click). cdn.taptoview.site is used to load gallery assets after upload.
 
 ---
 
@@ -63,7 +68,7 @@ Required for the content script to run on X and Twitter pages. The script reads 
 
 *Last updated: February 2026*
 
-TapX ("the Extension") is a browser extension for Google Chrome that removes visible gaps between split-image posts on X (Twitter).
+TapX ("the Extension") is a browser extension for Google Chrome that removes visible gaps between split-image posts on X (Twitter) and lets users share stitched results to the taptoview.site gallery.
 
 **Data collection**
 TapX does not collect, store, transmit, or share any personal data or user information. The extension does not track browsing history, page content, clicks, or any other user activity.
@@ -71,13 +76,17 @@ TapX does not collect, store, transmit, or share any personal data or user infor
 **Local storage**
 The extension stores a single on/off preference (`isEnabled`) in the browser's local storage (`chrome.storage.local`). This value never leaves the user's device.
 
+**Image upload**
+When the user clicks the Share button (overlay on the puzzle image or "Share to Gallery" in the popup), TapX stitches the visible image panels into a single JPEG using the Canvas API and uploads it to taptoview.site along with the tweet ID, tweet URL, X username, and optional tweet text. This upload occurs only on explicit user action and is covered by the taptoview.site Privacy Policy.
+
 **Third parties**
-TapX does not integrate any analytics, advertising, or third-party services. No data is sold or transferred to any third party under any circumstances.
+TapX does not integrate any analytics, advertising, or third-party services. No data is sold or transferred to any third party under any circumstances. The taptoview.site gallery service is the sole external destination, used only on explicit user action (Share button).
 
 **Permissions**
 The extension requests only the permissions necessary to function:
 - `activeTab` and host permissions for x.com/twitter.com — to detect and fix split-image layouts on tweet pages.
 - `storage` — to remember the user's on/off toggle setting.
+- Host permissions for taptoview.site/cdn.taptoview.site — to upload stitched images and load gallery assets when the user clicks Share.
 
 **Contact**
 If you have questions about this policy, please open an issue at the extension's repository.

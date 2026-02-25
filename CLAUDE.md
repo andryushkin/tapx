@@ -6,14 +6,14 @@ Chrome (MV3) + Firefox (MV2)-расширение для бесшовного о
 
 ```
 tapx/
-├── manifest.json              — Chrome MV3 конфиг, версия 0.1.0
+├── manifest.json              — Chrome MV3 конфиг, версия 0.2.0
 ├── manifest-firefox.json      — Firefox MV2 конфиг (browser_action, background.scripts)
 ├── content/
 │   ├── compat.js              — полифил: const api = browser ?? chrome (подключается первым)
 │   ├── content.js             — основная логика: сканирование твитов, DOM-замена, Canvas-склейка, upload
 │   └── seamless.css           — стили: tapx-wrapper, tapx-grid-container, tapx-stitch-btn, tapx-toast
 ├── background/
-│   └── background.js          — service worker (Chrome) / background script (Firefox): Downloads API + openTab action
+│   └── background.js          — service worker (Chrome) / background script (Firefox): только openTab action + onInstalled
 ├── popup/
 │   ├── popup.html             — UI: заголовок-ссылка TapX + toggle + кнопки "Merge" и "Save Stitched" + ссылка Gallery
 │   └── popup.js               — toggle + collapse-кнопка (forceColumn) + upload-кнопка (uploadCurrent)
@@ -31,8 +31,8 @@ tapx/
 
 ## Разрешения
 
-**Chrome (manifest.json):** `activeTab`, `storage`, `downloads` | host_permissions: `https://x.com/*`, `https://twitter.com/*`, `https://taptoview.site/*`, `https://cdn.taptoview.site/*`
-**Firefox (manifest-firefox.json):** `activeTab`, `storage`, `tabs`, `downloads` + те же хосты внутри `permissions`
+**Chrome (manifest.json):** `activeTab`, `storage` | host_permissions: `https://x.com/*`, `https://twitter.com/*`, `https://taptoview.site/*`, `https://cdn.taptoview.site/*`
+**Firefox (manifest-firefox.json):** `activeTab`, `storage`, `tabs` + те же хосты внутри `permissions`
 
 > `tabs` нужен в Firefox для `browser.tabs.query({ url: [...] })` в popup.js
 
@@ -129,6 +129,8 @@ python build_extension.py --target firefox   # Firefox → tapx_firefox.zip (~20
    > ⚠️ **НЕ возвращать CSS ancestor-walking** — не работает из-за position:absolute контейнера и reply box в article.
    > ⚠️ `stitchForceColumn` вставляет wrapper выше absolute-контейнера — это обязательно, иначе canvas обрежется по 317px.
 14. ~~**Force-stitched твит сбрасывался после виртуального скролла**~~ — **Исправлено:** X.com удаляет и пересоздаёт DOM при virtual scroll. `tapxDone` терялся. Фикс: `const forceColumnTweets = new Set()` — при `forceColumn` сохраняем `getTweetId(article)` в Set; `processArticle` проверяет Set через `shouldForce = forceColumnTweets.has(id)` и передаёт в `buildGrid`. Set живёт в памяти content script, очищается при перезагрузке страницы — корректно.
+
+15. ~~**`downloads` permission без использования**~~ — **Исправлено (v0.2.0):** `downloadCanvas` handler удалён из `background.js`, `"downloads"` убран из `manifest.json`. CWS требует обоснование каждого permission — неиспользуемые вызывают отклонение.
 
 > **Архитектурное решение:** расширение намеренно работает только на страницах твитов (`/status/\d+`), а не в ленте — пазл в ленте не виден целиком, обработка там лишена смысла.
 

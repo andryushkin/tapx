@@ -138,7 +138,7 @@ TapX — Chrome (MV3) и Firefox (MV2)-расширение, которое:
 | `getTweetText(article)` | ✅ |
 | `showUploadToast` — только для ошибок (success → window.open) | ✅ |
 | host_permissions: `taptoview.site`, `cdn.taptoview.site` | ✅ |
-| `downloads` permission в обоих манифестах | ✅ |
+| ~~`downloads` permission~~ — удалён из Chrome-манифеста (v0.2.0, неиспользуемый) | ✅ |
 
 ### FR-6: Кнопка «Собрать в столбик» ✅
 
