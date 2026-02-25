@@ -55,7 +55,7 @@ tapx/
    - Оборачивает `tapx-grid-container` в `tapx-wrapper` (`position: relative`)
    - Скрывает оригинальный контейнер (`display: none`)
    - Инжектирует одну кнопку-оверлей в правый нижний угол картинки (`.tapx-stitch-btn`, `position: absolute; bottom: 10px; right: 10px`)
-   - При `force=true`: проходит вверх по DOM от `parent` до `article`, снимает `overflow:hidden` и фиксированную высоту у контейнеров X.com (отмечает `data-tapx-ancestor-fixed`)
+   - При `force=true`: поднимается выше всех `position:absolute` предков (паттерн X.com: `padding-bottom spacer` + absolute overlay), прячет весь aspect-ratio блок (`hideEl`), вставляет wrapper в нормальный поток — затем вызывает `stitchForceColumn()`, которая рисует canvas и показывает как одну `<img>`
 4. `MutationObserver` с debounce 200ms обрабатывает infinite scroll
 
 ### Ключевые селекторы (стабильные data-testid X.com)
@@ -115,8 +115,9 @@ python build_extension.py --target firefox   # Firefox → tapx_firefox.zip (~20
    > ⚠️ **НЕ убирать try/catch вокруг `document.write`** — без него Firefox не запускает upload.
 10. ~~**Chrome popup: результат не открывался в новой вкладке**~~ — **Исправлено:** при `newWin = null` (popup upload) используется `api.runtime.sendMessage({ action: 'openTab', url })` → background делает `api.tabs.create({ url })`.
    > background.js обязан иметь handler для `openTab` — без него popup upload не открывает результат.
-11. ~~**«Собрать в столбик»: видно только первое изображение**~~ — **Исправлено:** X.com устанавливает фиксированную высоту + `overflow:hidden` на родительский контейнер 2×2 галереи. При `force=true` в `buildGrid` после вставки wrapper проходим вверх по DOM (`while el !== article`) и снимаем ограничения inline styles: `el.style.overflow='visible'; el.style.height='auto'; el.style.maxHeight='none'`. `revertAll()` восстанавливает через `= ''`.
-   > ⚠️ Без этой очистки видно только первое изображение из N (клип по высоте 2×2 галереи).
+11. ~~**«Собрать в столбик»: изображения обрезались**~~ — **Исправлено:** X.com медиа-контейнер использует `position:absolute; top:0; bottom:0` внутри `padding-bottom:56.25%`-спейсера. Любой wrapper внутри absolute обрезается по высоте spacer'а (~317px). CSS ancestor-walking не помогал из-за флекс-цепочки и reply box (~84px) внутри article. Финальный фикс: `stitchForceColumn()` — при `force=true` поднимаемся выше всех absolute предков, прячем весь aspect-ratio блок, вставляем wrapper в нормальный поток. Сшиваем изображения в canvas → показываем как одну `<img width:100%;height:auto>`.
+   > ⚠️ **НЕ возвращать CSS ancestor-walking** — не работает из-за position:absolute контейнера и reply box в article.
+   > ⚠️ `stitchForceColumn` вставляет wrapper выше absolute-контейнера — это обязательно, иначе canvas обрежется по 317px.
 
 > **Архитектурное решение:** расширение намеренно работает только на страницах твитов (`/status/\d+`), а не в ленте — пазл в ленте не виден целиком, обработка там лишена смысла.
 
