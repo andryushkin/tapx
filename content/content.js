@@ -38,6 +38,17 @@ api.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({ ok: true });
         stitchAndUpload(images, article, btn, null);
         return false;
+    } else if (msg.action === 'forceColumn') {
+        const article = document.querySelector('article[data-tapx-done="skip"]');
+        if (!article) {
+            sendResponse({ error: 'no_gallery' });
+            return false;
+        }
+        delete article.dataset.tapxDone;
+        const images = getMediaImages(article);
+        buildGrid(article, images, true);
+        sendResponse({ ok: true });
+        return false;
     }
 });
 
@@ -132,13 +143,15 @@ function processArticle(article) {
     }
 }
 
-function buildGrid(article, images) {
+function buildGrid(article, images, force = false) {
     if (article.dataset.tapxDone === '1') return;   // защита от гонки (timeout + load)
 
-    const { cols, rows } = detectLayout(images);    // теперь с настоящими rect
+    const { cols: detectedCols, rows: detectedRows } = detectLayout(images);
+    const cols = force ? 1 : detectedCols;
+    const rows = force ? images.length : detectedRows;
 
     // Пазл — только вертикальный столбик (cols === 1). Всё остальное не трогаем.
-    if (cols > 1) {
+    if (!force && cols > 1) {
         article.dataset.tapxDone = 'skip';
         return;
     }
@@ -192,6 +205,20 @@ function buildGrid(article, images) {
     target.style.display = 'none';
     target.dataset.tapxHidden = '1';
 
+    // В режиме force (2×2 → столбик) родительские контейнеры X.com имеют фиксированную
+    // высоту и overflow:hidden под aspect-ratio галереи — клипуют наш более высокий wrapper.
+    // Снимаем ограничения инлайн-стилями (выше специфичность CSS-классов).
+    if (force) {
+        let el = parent;
+        while (el && el !== article) {
+            el.style.overflow = 'visible';
+            el.style.height = 'auto';
+            el.style.maxHeight = 'none';
+            el.dataset.tapxAncestorFixed = '1';
+            el = el.parentElement;
+        }
+    }
+
     requestAnimationFrame(() => grid.classList.remove('tapx-loading'));
 
     injectStitchButton(article, images, wrapper);
@@ -204,6 +231,12 @@ function revertAll() {
     document.querySelectorAll('[data-tapx-hidden="1"]').forEach(el => {
         el.style.display = '';
         el.removeAttribute('data-tapx-hidden');
+    });
+    document.querySelectorAll('[data-tapx-ancestor-fixed="1"]').forEach(el => {
+        el.style.overflow = '';
+        el.style.height = '';
+        el.style.maxHeight = '';
+        delete el.dataset.tapxAncestorFixed;
     });
     document.querySelectorAll('[data-testid="tweet"]').forEach(a => {
         delete a.dataset.tapxDone;

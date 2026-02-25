@@ -44,6 +44,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Collapse gallery button
+    const collapseBtn = document.getElementById('collapse-btn');
+
+    collapseBtn.addEventListener('click', () => {
+        collapseBtn.disabled = true;
+        uploadStatus.textContent = 'Сборка...';
+
+        api.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            const tab = tabs[0];
+            if (!tab) {
+                uploadStatus.textContent = 'Вкладка не найдена';
+                collapseBtn.disabled = false;
+                return;
+            }
+            api.tabs.sendMessage(tab.id, { action: 'forceColumn' }, (response) => {
+                void api.runtime.lastError;
+                if (!response) {
+                    uploadStatus.textContent = 'Откройте страницу твита на X.com';
+                } else if (response.error === 'no_gallery') {
+                    uploadStatus.textContent = 'Галерея не найдена';
+                } else if (response.ok) {
+                    uploadStatus.textContent = 'Собрана ✓ Нажмите кнопку на картинке';
+                } else {
+                    uploadStatus.textContent = 'Не удалось собрать';
+                }
+                collapseBtn.disabled = false;
+            });
+        });
+    });
+
     // Listen for toggle changes
     toggleSwitch.addEventListener('change', (e) => {
         const isEnabled = e.target.checked;
