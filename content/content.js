@@ -13,6 +13,7 @@
 //  State
 // ─────────────────────────────────────────────
 let isEnabled = true;
+const forceColumnTweets = new Set(); // tweet IDs force-stitched by user (survives virtual scroll)
 
 function isOnTweetPage() {
     return /\/status\/\d+/.test(window.location.pathname);
@@ -43,16 +44,16 @@ api.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const hasGallery = !!document.querySelector('article[data-tapx-done="skip"]');
         sendResponse({ hasPuzzle, hasGallery });
         return false;
-    } else if (msg.action === 'tapxDiag') {
-        tapxShowDiag();
-        sendResponse({ ok: true });
-        return false;
     } else if (msg.action === 'forceColumn') {
         const article = document.querySelector('article[data-tapx-done="skip"]');
         if (!article) {
             sendResponse({ error: 'no_gallery' });
             return false;
         }
+        // Remember this tweet so we can re-stitch after virtual scroll recreation
+        const id = getTweetId(article);
+        if (id) forceColumnTweets.add(id);
+
         delete article.dataset.tapxDone;
         const images = getMediaImages(article);
         buildGrid(article, images, true);
@@ -137,10 +138,14 @@ function processArticle(article) {
         return;
     }
 
+    // Check if user previously force-stitched this tweet (survives virtual scroll)
+    const id = getTweetId(article);
+    const shouldForce = id ? forceColumnTweets.has(id) : false;
+
     const unloaded = images.filter(img => !img.complete || img.naturalWidth === 0);
     if (unloaded.length > 0) {
         let done = false;
-        const proceed = () => { if (!done) { done = true; buildGrid(article, images); } };
+        const proceed = () => { if (!done) { done = true; buildGrid(article, images, shouldForce); } };
         unloaded.forEach(img => {
             img.addEventListener('load',  proceed, { once: true });
             img.addEventListener('error', proceed, { once: true });
@@ -148,7 +153,7 @@ function processArticle(article) {
         // Fallback: строить даже если картинки не загрузились
         setTimeout(proceed, 800);
     } else {
-        buildGrid(article, images); // картинки уже загружены — строить сразу
+        buildGrid(article, images, shouldForce); // картинки уже загружены — строить сразу
     }
 }
 
@@ -254,7 +259,7 @@ async function stitchForceColumn(images, article, wrapper) {
     placeholder.style.cssText =
         'display:flex;align-items:center;justify-content:center;' +
         'min-height:120px;color:#888;font-family:system-ui,sans-serif;font-size:13px;';
-    placeholder.textContent = 'Сшивка\u2026';
+    placeholder.textContent = 'Stitching\u2026';
     wrapper.appendChild(placeholder);
 
     try {
@@ -558,93 +563,6 @@ function getTweetId(article) {
         if (m) return m[1];
     }
     return Date.now().toString();
-}
-
-// ─────────────────────────────────────────────
-//  Diagnostics overlay
-// ─────────────────────────────────────────────
-
-function tapxShowDiag() {
-    const existing = document.getElementById('tapx-diag-overlay');
-    if (existing) { existing.remove(); return; }
-
-    const lines = [];
-
-    const containers = document.querySelectorAll('.tapx-grid-container');
-    if (!containers.length) {
-        lines.push('Нет .tapx-grid-container на странице');
-    }
-
-    containers.forEach((grid, gi) => {
-        const gr = grid.getBoundingClientRect();
-        const isForce = grid.classList.contains('tapx-force-column');
-        const gcs = getComputedStyle(grid);
-        lines.push(`GRID[${gi}] force=${isForce} rect=${Math.round(gr.width)}x${Math.round(gr.height)}`);
-        lines.push(`  cols="${grid.style.gridTemplateColumns}" rows="${grid.style.gridTemplateRows}"`);
-        lines.push(`  computed: display=${gcs.display} overflow=${gcs.overflow} height=${gcs.height}`);
-
-        grid.querySelectorAll('.tapx-grid-cell').forEach((cell, ci) => {
-            const cr = cell.getBoundingClientRect();
-            const ccs = getComputedStyle(cell);
-            lines.push(`  CELL[${ci}] rect=${Math.round(cr.width)}x${Math.round(cr.height)}`);
-            lines.push(`    h=${ccs.height} overflow=${ccs.overflow} aspect=${ccs.aspectRatio} inline-aspect="${cell.style.aspectRatio}"`);
-            const img = cell.querySelector('img');
-            if (img) {
-                const ir = img.getBoundingClientRect();
-                const ics = getComputedStyle(img);
-                lines.push(`    IMG nat=${img.naturalWidth}x${img.naturalHeight} rect=${Math.round(ir.width)}x${Math.round(ir.height)}`);
-                lines.push(`      h=${ics.height} object-fit=${ics.objectFit}`);
-            }
-        });
-    });
-
-    lines.push('');
-    lines.push('ANCESTORS (tapx-ancestor-fixed):');
-    const ancestors = document.querySelectorAll('[data-tapx-ancestor-fixed]');
-    if (!ancestors.length) {
-        lines.push('  нет');
-    }
-    ancestors.forEach((el, i) => {
-        const r = el.getBoundingClientRect();
-        const cs = getComputedStyle(el);
-        const pr = el.parentElement ? el.parentElement.getBoundingClientRect() : null;
-        const pcs = el.parentElement ? getComputedStyle(el.parentElement) : null;
-        lines.push(`  [${i}] ${el.tagName} rect=${Math.round(r.width)}x${Math.round(r.height)}`);
-        lines.push(`    computed: h=${cs.height} minH=${cs.minHeight} maxH=${cs.maxHeight} overflow=${cs.overflow}`);
-        lines.push(`    flex:     display=${cs.display} alignSelf=${cs.alignSelf} flexShrink=${cs.flexShrink}`);
-        lines.push(`    inline:   h="${el.style.height}" alignSelf="${el.style.alignSelf}"`);
-        if (pcs) lines.push(`    parent:   display=${pcs.display} alignItems=${pcs.alignItems} h=${pcs.height} rect=${pr ? Math.round(pr.height) : '?'}px`);
-    });
-
-    const wrapper = document.querySelector('.tapx-wrapper');
-    if (wrapper) {
-        const wr = wrapper.getBoundingClientRect();
-        const wcs = getComputedStyle(wrapper);
-        lines.push('');
-        lines.push(`WRAPPER rect=${Math.round(wr.width)}x${Math.round(wr.height)}`);
-        lines.push(`  computed: overflow=${wcs.overflow} h=${wcs.height}`);
-        lines.push(`  inline: h="${wrapper.style.height}"`);
-    }
-
-    const overlay = document.createElement('div');
-    overlay.id = 'tapx-diag-overlay';
-    overlay.style.cssText =
-        'position:fixed;bottom:10px;right:10px;max-width:520px;max-height:70vh;' +
-        'overflow:auto;background:#111;color:#ddd;font-family:monospace;font-size:11px;' +
-        'line-height:1.6;padding:12px 16px;border-radius:8px;z-index:999999;' +
-        'border:1px solid #555;white-space:pre;box-shadow:0 4px 24px rgba(0,0,0,0.9)';
-
-    const title = document.createElement('div');
-    title.style.cssText = 'font-size:12px;font-weight:bold;color:#00ba7c;margin-bottom:8px';
-    title.textContent = '=== TAPX DIAG (клик — закрыть) ===';
-
-    const body = document.createElement('div');
-    body.textContent = lines.join('\n');
-
-    overlay.appendChild(title);
-    overlay.appendChild(body);
-    overlay.addEventListener('click', () => overlay.remove());
-    document.body.appendChild(overlay);
 }
 
 // ─────────────────────────────────────────────

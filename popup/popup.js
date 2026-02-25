@@ -15,7 +15,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Upload button
     const uploadBtn = document.getElementById('upload-btn');
-    const uploadStatus = document.getElementById('upload-status');
     const collapseBtn = document.getElementById('collapse-btn');
 
     // Скрыть кнопки изначально — покажем только когда знаем статус
@@ -25,46 +24,32 @@ document.addEventListener('DOMContentLoaded', () => {
     function applyStatus(hasPuzzle, hasGallery) {
         uploadBtn.style.display = hasPuzzle ? '' : 'none';
         collapseBtn.style.display = hasGallery ? '' : 'none';
-        if (!hasPuzzle && !hasGallery) {
-            uploadStatus.textContent = 'Пазл не найден на странице';
-        }
     }
 
     // Запросить статус при открытии popup
     api.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const tab = tabs[0];
-        if (!tab) { uploadStatus.textContent = 'Вкладка не найдена'; return; }
+        if (!tab) return;
         const isXcom = /^https?:\/\/(x|twitter)\.com\//.test(tab.url || '');
-        if (!isXcom) { uploadStatus.textContent = 'Откройте страницу твита на X.com'; return; }
+        if (!isXcom) return;
         api.tabs.sendMessage(tab.id, { action: 'getStatus' }, (response) => {
             void api.runtime.lastError;
-            if (!response) { uploadStatus.textContent = 'Пазл не найден'; return; }
+            if (!response) return;
             applyStatus(response.hasPuzzle, response.hasGallery);
         });
     });
 
     uploadBtn.addEventListener('click', () => {
         uploadBtn.disabled = true;
-        uploadStatus.textContent = 'Загрузка...';
 
         api.tabs.query({ active: true, currentWindow: true }, (tabs) => {
             const tab = tabs[0];
             if (!tab) {
-                uploadStatus.textContent = 'Вкладка не найдена';
                 uploadBtn.disabled = false;
                 return;
             }
             api.tabs.sendMessage(tab.id, { action: 'uploadCurrent' }, (response) => {
                 void api.runtime.lastError;
-                if (!response) {
-                    uploadStatus.textContent = 'Откройте страницу твита на X.com';
-                } else if (response.error === 'no_puzzle') {
-                    uploadStatus.textContent = 'Пазл не найден на странице';
-                } else if (response.ok) {
-                    uploadStatus.textContent = 'Открыто в новой вкладке ✓';
-                } else {
-                    uploadStatus.textContent = 'Не удалось загрузить';
-                }
                 uploadBtn.disabled = false;
             });
         });
@@ -72,40 +57,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     collapseBtn.addEventListener('click', () => {
         collapseBtn.disabled = true;
-        uploadStatus.textContent = 'Сборка...';
 
         api.tabs.query({ active: true, currentWindow: true }, (tabs) => {
             const tab = tabs[0];
             if (!tab) {
-                uploadStatus.textContent = 'Вкладка не найдена';
                 collapseBtn.disabled = false;
                 return;
             }
             api.tabs.sendMessage(tab.id, { action: 'forceColumn' }, (response) => {
                 void api.runtime.lastError;
-                if (!response) {
-                    uploadStatus.textContent = 'Откройте страницу твита на X.com';
-                } else if (response.error === 'no_gallery') {
-                    uploadStatus.textContent = 'Галерея не найдена';
-                } else if (response.ok) {
-                    uploadStatus.textContent = 'Собрана ✓ Нажмите кнопку на картинке';
+                if (response && response.ok) {
                     applyStatus(true, false);
-                } else {
-                    uploadStatus.textContent = 'Не удалось собрать';
                 }
                 collapseBtn.disabled = false;
-            });
-        });
-    });
-
-    // Diagnostics button
-    const diagBtn = document.getElementById('diag-btn');
-    diagBtn.addEventListener('click', () => {
-        api.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            const tab = tabs[0];
-            if (!tab) return;
-            api.tabs.sendMessage(tab.id, { action: 'tapxDiag' }, () => {
-                void api.runtime.lastError;
             });
         });
     });
